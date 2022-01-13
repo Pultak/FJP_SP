@@ -1,11 +1,22 @@
 %{
 #include <cstdio>
 #include <iostream>
+#include "../../synt_tree.h"
 
 extern "C" int yylex();
 int yyerror(const char *s);
 
+bool print_symbol_match = false;
+program* ast_root = NULL;
+
 extern FILE *yyin, *yyout;
+bool verbose_out = false;
+
+static void _print_symbol_match(const std::string& symbol, const std::string& str) {
+    if (print_symbol_match) {
+        std::cout << "[" << symbol << "]: " << str << std::endl;
+    }
+}
 
 #define YY_NO_UNISTD_H
 
@@ -22,6 +33,27 @@ extern FILE *yyin, *yyout;
     char comparison[5];
     char parenthesis;
     char bracket;
+
+    program* prog;
+    std::list<global_statement*>* global_statement;
+    function_declaration* function_declaration;
+    variable_declaration* variable_declaration;
+    declaration* my_declaration;
+    value* my_value;
+    arithmetic* arithmetic;
+    function_call* function_call;
+    std::list<value*>* expressions;
+    expression* expression;
+    assign_expression* assign_expression;
+    command* my_command;
+    std::list<command*>* commands;
+    block* block;
+    std::list<declaration*>* parameters;
+    boolean_expression* boolean_expression;
+    condition* condition;
+    loop* loop;
+    std::list<declaration*>* multi_declaration;
+    struct_definition* struct_def;
 }
 
 %define parse.error verbose
@@ -35,6 +67,26 @@ extern FILE *yyin, *yyout;
 
 %token END 0 "end of file"
 
+%type <prog> prog
+%type <global_statement> global
+%type <function_declaration> function
+%type <variable_declaration> variable
+%type <my_declaration> declaration
+%type <my_value> value
+%type <arithmetic> arithmetic
+%type <function_call> function_call
+%type <expressions> expressions
+%type <expression> expression
+%type <assign_expression> assign_expression
+%type <my_command> command
+%type <commands> commands
+%type <block> block
+%type <parameters> parameters
+%type <boolean_expression> boolean_expression
+%type <loop> loop
+%type <condition> condition
+%type <multi_declaration> multi_declaration
+%type <struct_def> struct_def
 %type <string_lit> STRING_LIT
 %type <number_lit> NUMBER_LIT
 %type <identifier> IDENTIFIER
@@ -64,185 +116,234 @@ extern FILE *yyin, *yyout;
 
 file:
     global {
-    	printf("Grammar root \n");
+    	$$ = new file($1);
+        ast_root = $$;
     }
 ;
 
 global:
      global shrek_def {
-    	printf("Struct found \n");
+    	$$ = $1;
+        $1->push_back($2);
     }
     | global method {
-    	printf("Fuction found \n");
+    	$$ = $1;
+        $1->push_back($2);
     }
     | global variable {
-    	printf("Variable found \n");
+    	$$ = $1;
+        $1->push_back($2);
     }
     | {
-    	printf("");
+    	$$ = new std::list<global_statement*>();
     }
 ;
 
 declaration:
     STRUCT IDENTIFIER IDENTIFIER {
-    	printf("Struct identifier found \n");
+    	_print_symbol_match("declaration", "variable structure: struct name=" + std::string($2) + " identifier=" + std::string($3));
+	$$ = new declaration(TYPE_META_STRUCT, $2, $3);
     }
     | TYPE IDENTIFIER {
-    	printf("Type identifier found\n");
+    	_print_symbol_match("declaration", "variable declaration: type=" + std::to_string($1) + " identifier=" + std::string($2));
+        $$ = new declaration($1, $2);
     }
     | TYPE IDENTIFIER B_L_SQUARE NUMBER_LIT B_R_SQUARE {
-    	printf("Array definition found \n");
+    	_print_symbol_match("declaration", "array declaration: type=" + std::to_string($1) + " identifier=" + std::string($2) + " size=" + std::to_string($4));
+        $$ = new declaration($1, $2, $4);
     }
 ;
 
 variable:
     CONST declaration ASSIGN value SEMICOLON {
-    	printf("Const variable declared\n");
+    	_print_symbol_match("variable", "constant declaration with initialization");
+	$$ = new variable_declaration($2, true, $4);
     }
     |declaration SEMICOLON {
-    	printf("Variable without assigned value\n");
+    	_print_symbol_match("variable", "variable declaration");
+	$$ = new variable_declaration($1);
     }
     | declaration ASSIGN value SEMICOLON {
-    	printf("Variable with value assigned\n");
+	_print_symbol_match("variable", "variable declaration with initialization");
+        $$ = new variable_declaration($1, false, $3);
     }
 ;
 
 condition:
     IF PAREN_L value PAREN_R block {
-    	printf("Simple if condition\n");
+    	_print_symbol_match("condition", "if condition (without else)");
+	$$ = new condition($3, $5);
     }
     | IF PAREN_L value PAREN_R block ELSE block {
-    	printf("If + else condition\n");
+    	_print_symbol_match("condition", "if condition (with else)");
+	$$ = new condition($3, $5, $7);
     }
 ;
 
 loop:
     FOR PAREN_L statement SEMICOLON value SEMICOLON statement PAREN_R block {
-    	printf("For (smortloop) cycle\n");
-    }|
-    WHILE PAREN_L value PAREN_R block {
-    	printf("While cycle\n");
+    	_print_symbol_match("loop", "for loop");
+	$$ = new for_loop($3, $5, $7, $9);
+    }
+    | WHILE PAREN_L value PAREN_R block {
+    	_print_symbol_match("loop", "while loop");
+	$$ = new while_loop($3, $5);
     }
 ;
 
 math:
     value COUNT_OP value {
-    	printf("Value counting\n");
+    	_print_symbol_match("arithmetic", "arithmetic expression (+, -), A " + std::string($2) + " B");
+	$$ = new arithmetic($1, arithmetic::str_to_op($2), $3);
     }
     | value MULTI_OP value {
-    	printf("Value multiplication\n");
+    	_print_symbol_match("arithmetic", "arithmetic expression (*, /), A " + std::string($2) + " B");
+	$$ = new arithmetic($1, arithmetic::str_to_op($2), $3);
     }
 ;
 
 value:
     math {
-    	printf("Sum counting found\n");
+    	_print_symbol_match("value", "arithmetic expression");
+	$$ = new value($1);
     }
     | method_call {
-    	printf("Calling function\n");
+    	_print_symbol_match("value", "function call");
+	$$ = new value($1);
     }
     | logical_statement {
-    	printf("Boolean expression found\n");
+    	_print_symbol_match("value", "boolean expression");
+	$$ = new value($1);
     }
     | logical_statement QUESTION value COLON value {
-    	printf("Ternary operator\n");
+    	_print_symbol_match("value", "ternary operator");
+	$$ = new value($1, $3, $5);
     }
     | assigning {
-    	printf("Assigning value\n");
+    	_print_symbol_match("value", "assign expression");
+	$$ = new value($1);
     }
     | NUMBER_LIT {
-    	printf("Numba found\n");
+    	_print_symbol_match("value", "integer literal '" + std::to_string($1) + "'");
+	$$ = new value($1);
     }
     | STRING_LIT {
-    	printf("Sum charz found\n");
+    	_print_symbol_match("value", "string literal '" + std::string($1) + "'");
+	$$ = new value($1);
     }
     | IDENTIFIER {
-    	printf("Value from identifier\n");
+    	_print_symbol_match("value", "scalar identifier '" + std::string($1) + "'");
+	$$ = new value(new variable_ref($1));
     }
     | IDENTIFIER DOT IDENTIFIER {
-    	printf("Struct + its variable\n");
+    	_print_symbol_match("value", "struct '" + std::string($1) + "' member '" + std::string($3) + "'");
+	$$ = new value($1, $3);
     }
     | IDENTIFIER B_L_SQUARE value B_R_SQUARE {
-    	printf("Getting to array value\n");
+    	_print_symbol_match("value", "array '" + std::string($1) + "' (indexed)");
+	$$ = new value(new variable_ref($1), $3);
     }
     | PAREN_L value PAREN_R {
-    	printf("Value in parentheses\n");
+    	_print_symbol_match("value", "parenthesis enclosure");
+	$$ = $2;
     }
 ;
 
 assigning:
     IDENTIFIER DOT IDENTIFIER ASSIGN value {
-    	printf("Assigning value to struct atribute \n");
+    	_print_symbol_match("assign_expression", "struct '" + std::string($1) + "' member '" + std::string($3) + "' as left-hand side");
+	$$ = new assign_expression($1, $3, $5);
     }
     | IDENTIFIER ASSIGN value {
-    	printf("Assigning to identifier\n");
+    	_print_symbol_match("assign_expression", "scalar left-hand side '" + std::string($1) + "'");
+	$$ = new assign_expression($1, (value*)nullptr, $3);
     }
     | IDENTIFIER B_L_SQUARE value B_R_SQUARE ASSIGN value {
-    	printf("Assigning value to array\n");
+    	_print_symbol_match("assign_expression", "array element of left-hand side '" + std::string($1) + "'");
+	$$ = new assign_expression($1, $3, $6);
     }
 ;
 
 statement:
     value {
-    	printf("");
+    	_print_symbol_match("expression", "value expression (discarding return value)");
+	$$ = new expression($1);
     }
 ;
 
 command:
     variable {
-    	printf("");
+    	_print_symbol_match("command", "variable declaration");
+	$$ = new command($1);
     }
     | statement SEMICOLON {
-    	printf("");
+    	_print_symbol_match("command", "expression");
+	$$ = new command($1);
     }
     | loop {
-	printf("");
+	_print_symbol_match("command", "loop");
+	$$ = new command($1);
     }
     | condition {
-	printf("");
+	_print_symbol_match("command", "condition");
+	$$ = new command($1);
     }
     | RETURN value SEMICOLON {
-    	printf("");
+    	_print_symbol_match("command", "return statement");
+	$$ = new command($2);
     }
 
 ;
 
 commands:
     commands command {
-    	printf("");
+    	_print_symbol_match("commands", "non-terminal command list match");
+	$$ = $1;
+	$1->push_back($2);
     }
     | {
-    	printf("");
+    	_print_symbol_match("commands", "terminal command list match");
+	$$ = new std::list<command*>();
     }
 ;
 
 block:
     B_L_CURLY B_R_CURLY {
-    	printf("Empty block body found\n");
+    	_print_symbol_match("block", "empty block");
+	$$ = new block(nullptr);
     }
     | B_L_CURLY commands B_R_CURLY {
-    	printf("Block body with commandas found \n");
+    	_print_symbol_match("block", "multi-line block");
+	$$ = new block($2);
     }
     | command {
-    	printf("");
+    	_print_symbol_match("block", "single-line block");
+	std::list<command*>* lst = new std::list<command*>();
+	lst->push_back($1);
+	$$ = new block(lst);
     }
 ;
 
 parameters:
     declaration {
-    	printf("Parameter declaration found \n");
+    	_print_symbol_match("parameters", "terminal function parameters definition");
+	$$ = new std::list<declaration*>{ $1 };
     }
     | parameters COMMA declaration {
-    	printf("Function declaration found \n");
+    	_print_symbol_match("parameters", "non-terminal function parameters definition");
+	$$ = $1;
+	$1->push_back($3);
     }
 ;
 
 method:
     declaration PAREN_L PAREN_R block {
-    	printf("Function without parameters definition \n");
+    	_print_symbol_match("function", "non-parametric function definition");
+	$$ = new function_declaration($1, $4);
     }
     | declaration PAREN_L PAREN_R SEMICOLON {
-    	printf("Function without parameters definition \n");
+    	_print_symbol_match("function", "non-parametric function forward declaration");
+	$$ = new function_declaration($1, nullptr);
     }
     | declaration PAREN_L parameters PAREN_R block {
     	printf("Function with parameters definition \n");
@@ -275,10 +376,13 @@ logical_statement:
 
 multi_declaration:
     multi_declaration declaration SEMICOLON {
-    	printf("Multideclaration token \n");
+    	_print_symbol_match("multi_declaration", "non-terminal declaration");
+	$$ = $1;
+	$1->push_back($2);
     }
     | {
-    	printf("");
+    	_print_symbol_match("multi_declaration", "terminal declaration");
+	$$ = new std::list<declaration*>();
     }
 ;
 
@@ -322,4 +426,3 @@ int parse_code(FILE* input, FILE* output)
 
     return yyparse();
 }
-
