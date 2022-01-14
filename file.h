@@ -25,7 +25,15 @@ public:
 
     int size_global_frame = 0;
 
-    evaluate_error generate() {
+    // all currently declared identifiers
+    std::map<std::string, declared_identifier> declared_identifiers;
+
+
+    std::map<std::string, int> global_identifier_cell;
+    // global initializers table
+    std::map<std::string, value*> global_initializers;
+
+    generation_result generate() {
 
         //todo global functions for the needed print enxtension
 
@@ -44,8 +52,8 @@ public:
         generated_instructions[3].arg.value = 3;
 
         for (auto* stmt : *statements) {
-            evaluate_error ret = stmt->generate(generated_instructions);
-            if (ret != evaluate_error::ok) {
+            generation_result ret = stmt->generate(generated_instructions, declared_identifiers);
+            if (ret.result != evaluate_error::ok) {
                 return ret;
             }
         }
@@ -76,12 +84,11 @@ public:
         for (int pos = 0; pos < generated_instructions.size(); pos++) {
             auto& instr = generated_instructions[pos];
             if (instr.arg.isref) {
-                generation_message = "Unresolved symbol '" + instr.arg.symbolref +"'";
-                return evaluate_error::unresolved_reference;
+                return generate_result(evaluate_error::unresolved_reference, "Unresolved symbol '" + instr.arg.symbolref +"'");
             }
         }
 
-        return evaluate_error::ok;
+        return generate_result(evaluate_error::ok, "");
     }
 
 private:
@@ -90,10 +97,11 @@ private:
         // look for identifier in current scope
         block* curscope = code_scopes.empty() ? nullptr : code_scopes.top();
         if (curscope) {
-            auto res = curscope->identifier_cell.find(identifier);
-            if (res != curscope->identifier_cell.end()) {
+            auto res = curscope->declared_identifiers.find(identifier);
+            if (res != curscope->declared_identifiers.end()) {
                 level = 0;
-                offset = res->second;
+                //todo address needed?
+                offset = res->second.identifier_address;
                 return true;
             }
         }

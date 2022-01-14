@@ -1,5 +1,13 @@
 #include <string>
 
+
+#define TYPE_INT    1
+#define TYPE_CHAR   2
+#define TYPE_STRING 3
+#define TYPE_BOOL   4
+#define TYPE_META_STRUCT 5
+#define TYPE_VOID 6
+
 namespace pl0_utils{
     // prikazy pl0
     enum class pl0code_fct : uint8_t {
@@ -128,6 +136,29 @@ namespace pl0_utils{
                    (arg.isref ? "<" + arg.symbolref + ">" : std::to_string(arg.value));
 
             return ret;
+        }
+    };
+
+    //type of helper
+    struct pl0type_info {
+        // default parent type
+        int parent_type = TYPE_VOID;
+        // child type, if this is a struct, this tells the current structure
+        int child_type = 0;
+
+        // is this a function type identifier?
+        bool is_function = false;
+        // is this a constant?
+        bool is_const = false;
+
+        bool operator!=(const pl0type_info &second) const {
+            return !(*this == second);
+        }
+
+        bool operator==(const pl0type_info &second) const {
+            // technically "const" and "non-const" variants are different types, but in order to be able to assign const to non-const, we check for it separately
+            return parent_type == second.parent_type && child_type ==
+                                                        second.child_type /*&& is_function == second.is_function && is_const == second.is_const*/;
         }
     };
 
