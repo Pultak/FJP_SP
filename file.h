@@ -25,13 +25,6 @@ public:
 
     int size_global_frame = 0;
 
-    // all currently declared identifiers
-    std::map<std::string, declared_identifier> declared_identifiers;
-
-
-    std::map<std::string, int> global_identifier_cell;
-    // global initializers table
-    std::map<std::string, value*> global_initializers;
 
     generation_result generate() {
 
@@ -52,7 +45,8 @@ public:
         generated_instructions[3].arg.value = 3;
 
         for (auto* stmt : *statements) {
-            generation_result ret = stmt->generate(generated_instructions, declared_identifiers);
+            std::map<std::string, declared_identifier> dummy;
+            generation_result ret = stmt->generate(generated_instructions, dummy, size_global_frame, true);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -64,16 +58,22 @@ public:
         generated_instructions[0].arg.value = size_global_frame;
 
         generated_instructions[1].arg.value = static_cast<int>(generated_instructions.size());
-        //todo add global initializers
+
+        for (auto& inits : global_initializers) {
+            inits.second->generate();
+            find_identifier(inits.first, lvl, val);
+            generated_instructions.emplace_back(pl0_utils::pl0code_fct::STO, val, lvl);
+        }
+        //todo is the position always static? 2th instruction is init jump
+        generated_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, 1 + 1); // jump back
 
         //todo do we want string extension?
-
 
         // resolve functions address in all program instructions
         for (int pos = 0; pos < generated_instructions.size(); pos++) {
             auto& instr = generated_instructions[pos];
             if (instr.instruction == pl0_utils::pl0code_fct::CAL && instr.arg.isref && instr.arg.isfunc) {
-                if (this->find_identifier(instr.arg.symbolref, lvl, val)) {
+                if (find_identifier(instr.arg.symbolref, lvl, val)) {
                     instr.arg.resolve(val);
                     instr.lvl = 0;
                 }
@@ -91,22 +91,4 @@ public:
         return generate_result(evaluate_error::ok, "");
     }
 
-private:
-    bool find_identifier(const std::string& identifier, int& level, int& offset){
-
-        // look for identifier in current scope
-        block* curscope = code_scopes.empty() ? nullptr : code_scopes.top();
-        if (curscope) {
-            auto res = curscope->declared_identifiers.find(identifier);
-            if (res != curscope->declared_identifiers.end()) {
-                level = 0;
-                //todo address needed?
-                offset = res->second.identifier_address;
-                return true;
-            }
-        }
-
-        // todo global variables
-        return false;
-    }
 };

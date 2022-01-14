@@ -346,31 +346,39 @@ method:
 	$$ = new function_declaration($1, nullptr);
     }
     | declaration PAREN_L parameters PAREN_R block {
-    	printf("Function with parameters definition \n");
+    	_print_symbol_match("function", "parametric function definition");
+	$$ = new function_declaration($1, $5, $3);
     }
     | declaration PAREN_L parameters PAREN_R SEMICOLON {
-    	printf("");
+    	_print_symbol_match("function", "parametric function forward declaration");
+	$$ = new function_declaration($1, nullptr, $3);
     }
 ;
 
 logical_statement:
     TRUE {
-    	printf("True \n");
+        _print_symbol_match("boolean_expression", "TRUE token");
+        $$ = new boolean_expression(true);
     }
     | FALSE {
-    	printf("Truent \n");
+        _print_symbol_match("boolean_expression", "FALSE token");
+        $$ = new boolean_expression(false);
     }
     |NOT value {
-    	printf("Boolean negation\n");
+        _print_symbol_match("boolean_expression", "negation of value");
+        $$ = new boolean_expression($2, nullptr, boolean_expression::operation::negate);
     }
     | value COMPARISON value {
-    	printf("Boolean comparison \n");
+        _print_symbol_match("boolean_expression", "comparison, A " + std::string($2) + " B");
+        $$ = new boolean_expression($1, $3, boolean_expression::str_to_bool_op($2));
     }
     | PAREN_L logical_statement PAREN_R {
-    	printf("Boolean in parentheses\n");
+        _print_symbol_match("boolean_expression", "parenthesis enclosure");
+        $$ = $2;
     }
     | value LOG_OP value {
-    	printf("Boolean log operation \n");
+        _print_symbol_match("boolean_expression", "boolean operation on values, A " + std::string($2) + " B");
+        $$ = new boolean_expression($1, $3, boolean_expression::str_to_bool_op($2));
     }
 ;
 
@@ -388,26 +396,32 @@ multi_declaration:
 
 shrek_def:
     STRUCT IDENTIFIER B_L_CURLY multi_declaration B_R_CURLY SEMICOLON {
-    	printf("Shrek declaration he stronk  \n");
+        _print_symbol_match("struct_def", "structure definition");
+        $$ = new struct_definition($2, $4);
     }
 ;
 
 statements:
     statements COMMA value {
-    	printf("function parameter token \n");
+        _print_symbol_match("expressions", "expression list as a function call parameter (multiple parameters)");
+        $$ = $1;
+        $1->push_back($3);
     }
     | value {
-    	printf("function parameter token");
+        _print_symbol_match("expressions", "expression list as a function call parameter (single parameter)");
+        $$ = new std::list<value*>{$1};
     }
 ;
 
 
 method_call:
     IDENTIFIER PAREN_L PAREN_R {
-    	printf("calling empty function \n");
+        _print_symbol_match("function_call", "non-parametric function call");
+        $$ = new function_call($1);
     }
     | IDENTIFIER PAREN_L statements PAREN_R {
-    	printf("Callin function with parameters \n");
+        _print_symbol_match("function_call", "parametric function call");
+        $$ = new function_call($1, $3);
     }
 ;
 
