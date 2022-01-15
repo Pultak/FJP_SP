@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 
 
@@ -27,8 +28,8 @@ namespace pl0_utils{
     enum class pl0code_opr : int {
         RETURN = 0,
 
-        // arithmetic operations
-        NEGATE = 1, // arithmetic
+        // math operations
+        NEGATE = 1, // math
         ADD = 2,
         SUBTRACT = 3,
         MULTIPLY = 4,

@@ -1,13 +1,14 @@
 %{
+#pragma once
 #include <cstdio>
 #include <iostream>
-#include "../../synt_tree.h"
+#include "../file.h"
 
 extern "C" int yylex();
 int yyerror(const char *s);
 
 bool print_symbol_match = false;
-program* ast_root = NULL;
+file* ast_root = NULL;
 
 extern FILE *yyin, *yyout;
 bool verbose_out = false;
@@ -34,14 +35,14 @@ static void _print_symbol_match(const std::string& symbol, const std::string& st
     char parenthesis;
     char bracket;
 
-    program* prog;
+    file* file;
     std::list<global_statement*>* global_statement;
-    function_declaration* function_declaration;
+    method_declaration* method_declaration;
     variable_declaration* variable_declaration;
     declaration* my_declaration;
     value* my_value;
-    arithmetic* arithmetic;
-    function_call* function_call;
+    math* math;
+    method_call* method_call;
     std::list<value*>* expressions;
     expression* expression;
     assign_expression* assign_expression;
@@ -53,7 +54,7 @@ static void _print_symbol_match(const std::string& symbol, const std::string& st
     condition* condition;
     loop* loop;
     std::list<declaration*>* multi_declaration;
-    struct_definition* struct_def;
+    struct_definition* struct_definition;
 }
 
 %define parse.error verbose
@@ -67,26 +68,27 @@ static void _print_symbol_match(const std::string& symbol, const std::string& st
 
 %token END 0 "end of file"
 
-%type <prog> prog
+%type <file> file
 %type <global_statement> global
-%type <function_declaration> function
+%type <method_declaration> method
 %type <variable_declaration> variable
 %type <my_declaration> declaration
 %type <my_value> value
-%type <arithmetic> arithmetic
-%type <function_call> function_call
-%type <expressions> expressions
-%type <expression> expression
-%type <assign_expression> assign_expression
+%type <math> math
+%type <method_call> method_call
+%type <expressions> statements
+%type <expression> statement
+%type <assign_expression> assigning
 %type <my_command> command
 %type <commands> commands
 %type <block> block
 %type <parameters> parameters
-%type <boolean_expression> boolean_expression
+%type <boolean_expression> logical_statement
 %type <loop> loop
 %type <condition> condition
 %type <multi_declaration> multi_declaration
-%type <struct_def> struct_def
+%type <struct_definition> shrek_def
+
 %type <string_lit> STRING_LIT
 %type <number_lit> NUMBER_LIT
 %type <identifier> IDENTIFIER
@@ -193,18 +195,18 @@ loop:
 
 math:
     value COUNT_OP value {
-    	_print_symbol_match("arithmetic", "arithmetic expression (+, -), A " + std::string($2) + " B");
-	$$ = new arithmetic($1, arithmetic::str_to_op($2), $3);
+    	_print_symbol_match("math", "math expression (+, -), A " + std::string($2) + " B");
+	$$ = new math($1, math::get_operation($2), $3);
     }
     | value MULTI_OP value {
-    	_print_symbol_match("arithmetic", "arithmetic expression (*, /), A " + std::string($2) + " B");
-	$$ = new arithmetic($1, arithmetic::str_to_op($2), $3);
+    	_print_symbol_match("math", "math expression (*, /), A " + std::string($2) + " B");
+	$$ = new math($1, math::get_operation($2), $3);
     }
 ;
 
 value:
     math {
-    	_print_symbol_match("value", "arithmetic expression");
+    	_print_symbol_match("value", "math expression");
 	$$ = new value($1);
     }
     | method_call {
@@ -339,19 +341,19 @@ parameters:
 method:
     declaration PAREN_L PAREN_R block {
     	_print_symbol_match("function", "non-parametric function definition");
-	$$ = new function_declaration($1, $4);
+	$$ = new method_declaration($1, $4);
     }
     | declaration PAREN_L PAREN_R SEMICOLON {
     	_print_symbol_match("function", "non-parametric function forward declaration");
-	$$ = new function_declaration($1, nullptr);
+	$$ = new method_declaration($1, nullptr);
     }
     | declaration PAREN_L parameters PAREN_R block {
     	_print_symbol_match("function", "parametric function definition");
-	$$ = new function_declaration($1, $5, $3);
+	$$ = new method_declaration($1, $5, $3);
     }
     | declaration PAREN_L parameters PAREN_R SEMICOLON {
     	_print_symbol_match("function", "parametric function forward declaration");
-	$$ = new function_declaration($1, nullptr, $3);
+	$$ = new method_declaration($1, nullptr, $3);
     }
 ;
 
@@ -370,7 +372,7 @@ logical_statement:
     }
     | value COMPARISON value {
         _print_symbol_match("boolean_expression", "comparison, A " + std::string($2) + " B");
-        $$ = new boolean_expression($1, $3, boolean_expression::str_to_bool_op($2));
+        $$ = new boolean_expression($1, $3, boolean_expression::convert_to_bool_operation($2));
     }
     | PAREN_L logical_statement PAREN_R {
         _print_symbol_match("boolean_expression", "parenthesis enclosure");
@@ -378,7 +380,7 @@ logical_statement:
     }
     | value LOG_OP value {
         _print_symbol_match("boolean_expression", "boolean operation on values, A " + std::string($2) + " B");
-        $$ = new boolean_expression($1, $3, boolean_expression::str_to_bool_op($2));
+        $$ = new boolean_expression($1, $3, boolean_expression::convert_to_bool_operation($2));
     }
 ;
 
@@ -396,7 +398,7 @@ multi_declaration:
 
 shrek_def:
     STRUCT IDENTIFIER B_L_CURLY multi_declaration B_R_CURLY SEMICOLON {
-        _print_symbol_match("struct_def", "structure definition");
+        _print_symbol_match("struct_definition", "structure definition");
         $$ = new struct_definition($2, $4);
     }
 ;
@@ -416,12 +418,12 @@ statements:
 
 method_call:
     IDENTIFIER PAREN_L PAREN_R {
-        _print_symbol_match("function_call", "non-parametric function call");
-        $$ = new function_call($1);
+        _print_symbol_match("method_call", "non-parametric function call");
+        $$ = new method_call($1);
     }
     | IDENTIFIER PAREN_L statements PAREN_R {
-        _print_symbol_match("function_call", "parametric function call");
-        $$ = new function_call($1, $3);
+        _print_symbol_match("method_call", "parametric function call");
+        $$ = new method_call($1, $3);
     }
 ;
 

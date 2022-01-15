@@ -1,11 +1,10 @@
 //
 // Created by pultak on 12.01.22.
 //
-#ifndef FJP_SP_CODE_BLOCK_H
-#define FJP_SP_CODE_BLOCK_H
-
+#pragma once
 #include <list>
 #include <map>
+#include <memory>
 
 #include "synt_tree.h"
 #include "value.h"
@@ -15,45 +14,40 @@ struct variable_declaration;
 struct condition;
 //todo namespace + refactoring in the future needed
 
+struct block;
+
+std::map<std::string, int> global_identifier_cell;
+// global initializers table
+std::map<std::string, value*> global_initializers;
+
+
+std::map<std::string, std::list<declaration*>*> struct_defs;
+
 // declare identifier in current scope
 generation_result declare_identifier(const std::string& identifier, const pl0_utils::pl0type_info type,
                                   std::map<std::string, declared_identifier>& declared_identifiers,
                                   const std::string& struct_name = "", bool forward_decl = false,
                                   const std::vector<pl0_utils::pl0type_info>& types = {});
 
+bool find_identifier(const std::string& identifier, int& level, int& offset, block* scope);
+
+
 // undeclare existing identifier
 bool undeclare_identifier(const std::string& identifier,
                           std::map<std::string, declared_identifier>& declared_identifiers);
 
-bool find_identifier(const std::string& identifier, int& level, int& offset);
-
 
 // any command
 struct command {
-    command(variable_declaration* decl)
-            : var(decl) {
-        //
-    }
+    command(variable_declaration* decl): var(decl) {}
 
-    command(expression* decl)
-            : expr(decl) {
-        //
-    }
+    command(expression* decl): expr(decl) {}
 
-    command(value* val)
-            : command_value(val) {
-        //
-    }
+    command(value* val): command_value(val) {}
 
-    command(loop* loop)
-            : cycle(loop) {
-        //
-    }
+    command(loop* loop): cycle(loop) {}
 
-    command(condition* cond)
-            : cond(cond) {
-        //
-    }
+    command(condition* cond): cond(cond) {}
 
     virtual ~command();
 
@@ -63,13 +57,14 @@ struct command {
     condition* cond = nullptr;
     value* command_value = nullptr;
 
-    generation_result generate();
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                               std::map<std::string, declared_identifier>& declared_identifiers,
+                               bool& return_val, int& frame_size);
 };
 
 // commands block like inside of function/condition/loop for example
 struct block {
-    block(std::list<command*>* commandlist) : commands(commandlist) {
-    }
+    block(std::list<command*>* commandlist) : commands(commandlist) {}
     virtual ~block();
 
     // list of block commands
@@ -84,10 +79,9 @@ struct block {
     // is this block a function? Functions need a frame to allocate
     bool is_function_block = false;
 
-    std::list<variable_declaration*>* injected_declarations = nullptr; // for function parameters
+    std::list<std::unique_ptr<variable_declaration>>* injected_declarations = nullptr; // for function parameters
 
-    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
-                               std::map<std::string, declared_identifier>& declared_identifiers);
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions, bool& return_val);
 };
 
 
@@ -101,7 +95,120 @@ struct loop{
 
     // commands inside this loop
     block* loop_commands;
+    virtual generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                               std::map<std::string, declared_identifier>& declared_identifiers) = 0;
 };
+
+struct while_loop : public loop {
+    while_loop(value* exp, block* commands)
+            : loop(commands), cond_expr(exp) {
+        //
+    }
+    virtual ~while_loop() {
+        delete cond_expr;
+    }
+
+    // condition checked on each iteration
+    value* cond_expr;
+
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                               std::map<std::string, declared_identifier>& declared_identifiers) override {
+
+        generation_result ret;
+
+        // evaluate condition
+        int condpos = static_cast<int>(result_instructions.size());
+        ret = cond_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        if (ret.result != evaluate_error::ok) {
+            return ret;
+        }
+
+        // jump below loop block if false (previous evaluation leaves result on stack, JPC performs jump based on this value)
+        int jpcpos = result_instructions.size();
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+
+        // evaluate loop commands
+        if (loop_commands) {
+            bool dummy;
+            ret = loop_commands->generate(result_instructions, dummy);
+            if (ret.result != evaluate_error::ok) {
+                return ret;
+            }
+
+            // jump at condition and repeat, if needed
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, condpos);
+        }
+
+        // store current "address" to JPC instruction, so it knows where to jump
+        result_instructions[jpcpos].arg.value = static_cast<int>(result_instructions.size());
+
+        return generate_result(evaluate_error::ok, "");
+    }
+};
+
+struct for_loop : public loop {
+    for_loop(expression* exp1, value* exp2, expression* exp3, block* commands)
+            : loop(commands), init_expr(exp1), cond_val(exp2), mod_expr(exp3) {
+        //
+    }
+    virtual ~for_loop() {
+        delete init_expr;
+        delete cond_val;
+        delete mod_expr;
+    }
+
+    expression* init_expr, *mod_expr;
+    value* cond_val;
+
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                               std::map<std::string, declared_identifier>& declared_identifiers) override {
+
+        generation_result ret;
+
+        // evaluate initialization expression
+        ret = init_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        if (ret.result != evaluate_error::ok) {
+            return ret;
+        }
+
+        // store repeat position (we will jump here after each iteration)
+        int repeatpos = static_cast<int>(result_instructions.size());
+
+        // evaluate condition value
+        ret = cond_val->generate(result_instructions, declared_identifiers, struct_defs);
+        if (ret.result != evaluate_error::ok) {
+            return ret;
+        }
+
+        // jump below loop block if false
+        int jpcpos = result_instructions.size();
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+
+        // evaluate loop commands
+        if (loop_commands) {
+            bool dummy;
+            ret = loop_commands->generate(result_instructions, dummy);
+            if (ret.result != evaluate_error::ok) {
+                return ret;
+            }
+        }
+
+        // evaluate modifying expression
+        ret = mod_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        if (ret.result != evaluate_error::ok) {
+            return ret;
+        }
+
+        // jump to condition
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, repeatpos);
+
+        // update JPC target position to jump here when the condition is not met
+        result_instructions[jpcpos].arg.value = static_cast<int>(result_instructions.size());
+
+        return generate_result(evaluate_error::ok, "");
+    }
+};
+
 
 
 
@@ -121,9 +228,13 @@ struct variable_declaration : public global_statement {
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               int& identifier_cell, int& frame_size) override {
+                               int& frame_size, bool global) override {
+        if(global){
+            //todo global probnlme?
+        }
 
-        generation_result ret = decl->generate(identifier_cell, frame_size);
+        auto id = declared_identifiers.at(decl->identifier);
+        generation_result ret = decl->generate(id.identifier_address, frame_size, global, struct_defs);
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -136,18 +247,18 @@ struct variable_declaration : public global_statement {
 
         // is this declaration initialized?
         if (initialized_by) {
-            ret = initialized_by->generate();
+            ret = initialized_by->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
 
-            if (initialized_by->get_type_info() != decl->type) {
+            if (initialized_by->get_type_info(declared_identifiers, struct_defs) != decl->type) {
                 return generate_result(evaluate_error::cannot_assign_type, "Initializer type of '" + decl->identifier + "' does not match the variable type");
             }
 
             // store evaluation result (stack top) to a given variable
             result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, decl->identifier);
-            //todo global initializers
+            global_initializers[decl->identifier] = initialized_by;
         }
         return generate_result(evaluate_error::ok,"");
 
@@ -170,7 +281,7 @@ struct condition{
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers){
 
-        generation_result ret = cond_expr->generate();
+        generation_result ret = cond_expr->generate(result_instructions, declared_identifiers, struct_defs);
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -182,7 +293,8 @@ struct condition{
 
         // true commands (if condition is true)
         if (first_commands) {
-            ret = first_commands->generate(result_instructions, declared_identifiers);
+            bool dummy;
+            ret = first_commands->generate(result_instructions, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -199,7 +311,8 @@ struct condition{
 
         if (else_commands) {
 
-            ret = else_commands->generate(result_instructions, declared_identifiers);
+            bool dummy;
+            ret = else_commands->generate(result_instructions, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -211,7 +324,3 @@ struct condition{
         return generate_result(evaluate_error::ok, "");
     }
 };
-
-
-
-#endif //FJP_SP_CODE_BLOCK_H

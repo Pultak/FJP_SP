@@ -36,42 +36,42 @@ value::~value() {
     }
 }
 
+pl0_utils::pl0type_info get_identifier_type_info(const std::string& identifier,
+                                                 std::map<std::string, declared_identifier>& declared_identifiers){
+    if (!(declared_identifiers.find(identifier) != declared_identifiers.end())) {
+        return { TYPE_VOID, 0, false };
+    }
 
-pl0_utils::pl0type_info value::get_type_info() const
-{
+    return declared_identifiers.find(identifier)->second.type;
+}
 
-    auto get_identifier_type_info = [&context](const std::string& identifier) -> pl0_utils::pl0type_info {
-        if (!is_identifier_declared(identifier)) {
-            return { TYPE_VOID, 0, false };
-        }
 
-        return get_declared_identifier(identifier).type;
-    };
-
+pl0_utils::pl0type_info value::get_type_info(std::map<std::string, declared_identifier>& declared_identifiers,
+                                             std::map<std::string, std::list<declaration*>*> struct_defs) const{
     switch (value_type) {
         case value_type::const_number_lit:
             return { TYPE_INT, 0, false };
         case value_type::const_string_lit:
             return { TYPE_STRING, 0, false };
         case value_type::variable:
-            return get_identifier_type_info(content.variable->identifier);
+            return get_identifier_type_info(content.variable->identifier, declared_identifiers);
         case value_type::array_member:
-            return get_identifier_type_info(content.array_element.array->identifier);
+            return get_identifier_type_info(content.array_element.array->identifier, declared_identifiers);
         case value_type::assign_expression:
-            return content.assign_expr->assign_value->get_type_info();
+            return content.assign_expr->assign_value->get_type_info(declared_identifiers, struct_defs);
             break;
         case value_type::boolean_expression:
             return { TYPE_BOOL, 0, false };
         case value_type::member:
         {
             // get name based on the identifier
-            if (!is_identifier_declared(name)) {
+            if (declared_identifiers.find(name) == declared_identifiers.end()) {
                 return { TYPE_VOID, 0, false };
             }
-            const auto& def = get_declared_identifier(name);
+            const auto& def = declared_identifiers.find(name)->second;
 
             // load the struct definition
-            auto struct_def = get_struct_definition(def.struct_name);
+            auto struct_def = struct_defs.find(def.struct_name)->second;
 
             for (auto member : *struct_def) {
                 if (member->identifier == member_spec) {
@@ -85,8 +85,8 @@ pl0_utils::pl0type_info value::get_type_info() const
             return { TYPE_INT, 0, false };
         case value_type::ternary:
         {
-            pl0_utils::pl0type_info positivetype = content.ternary.positive->get_type_info();
-            pl0_utils::pl0type_info negativetype = content.ternary.negative->get_type_info();
+            pl0_utils::pl0type_info positivetype = content.ternary.positive->get_type_info(declared_identifiers, struct_defs);
+            pl0_utils::pl0type_info negativetype = content.ternary.negative->get_type_info(declared_identifiers, struct_defs);
 
             if (positivetype != negativetype) {
                 return { TYPE_VOID, 0, false };
@@ -95,7 +95,7 @@ pl0_utils::pl0type_info value::get_type_info() const
             return positivetype;
         }
         case value_type::return_value:
-            return get_identifier_type_info(content.call->function_identifier);
+            return get_identifier_type_info(content.call->function_identifier, declared_identifiers);
     }
 
     return { TYPE_VOID, 0, false };
@@ -103,7 +103,8 @@ pl0_utils::pl0type_info value::get_type_info() const
 
 
 generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
-                                  std::map<std::string, declared_identifier>& declared_identifiers) {
+                                  std::map<std::string, declared_identifier>& declared_identifiers,
+                                  std::map<std::string, std::list<declaration*>*> struct_defs) {
 
     // pushing value to stack, unless "return_value_ignored" is defined
 
@@ -111,37 +112,35 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
     int address;
 
     switch (value_type) {
-        case value_type::const_string_lit:
-            // constant string literal - push literal address to stack
-            address = context.store_global_string_literal(name);
-            result_instructions.emplace_back(pl0_utils::pl0code_fct::LIT, address);
-            break;
-        case value_type::const_number_lit:
+        case value_type::const_number_lit: {
             // constant integer literal - push constant to stack
             result_instructions.emplace_back(pl0_utils::pl0code_fct::LIT, content.number_value);
             break;
-        case value_type::variable:
+        }
+        case value_type::variable: {
             // variable - load by address
             result_instructions.emplace_back(pl0_utils::pl0code_fct::LOD, content.variable->identifier);
-            ret = content.variable->generate();
+            ret = content.variable->generate(declared_identifiers);
             break;
-        case value_type::arithmetic:
-            // arithmetic expression - just evaluate, arithmetic_expression evaluate method will leave result on stack
-            ret = content.arithmetic_expression->generate();
+        }
+        case value_type::arithmetic: {
+            // math expression - just evaluate, arithmetic_expression evaluate method will leave result on stack
+            ret = content.arithmetic_expression->generate(result_instructions, declared_identifiers, struct_defs);
             break;
+        }
         case value_type::member: {
             // struct member - determine struct base and member offset and load it
             // checks if identifier is declared
-            if (!is_identifier_declared(name)) {
+            if (declared_identifiers.find(name) == declared_identifiers.end()) {
                 ret = generate_result(evaluate_error::undeclared_identifier, "Undeclared identifier '" + name + "'");
                 break;
             }
 
             // get the struct name from identifier
-            auto struct_name = declared_identifiers[name].struct_name;
+            std::string struct_name = declared_identifiers[name].struct_name;
 
             // struct must be defined
-            if (!is_struct_defined(struct_name)) {
+            if (struct_defs.find(struct_name) == struct_defs.end()) {
                 ret = generate_result(evaluate_error::unknown_typename, "Unknown typename found!");
                 break;
             }
@@ -175,13 +174,13 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
 
             break;
         }
-        case value_type::array_member:
+        case value_type::array_member: {
             // array element - load base, move by offset and load using extended p-code instruction set
             // specify the base
             result_instructions.emplace_back(pl0_utils::pl0code_fct::LIT, 0);
 
             // evaluate index value
-            ret = content.array_element.index->generate();
+            ret = content.array_element.index->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 break;
             }
@@ -195,12 +194,13 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
                                              pl0_utils::pl0code_opr::ADD);
 
             // put the value given by the address present at the top of the stack to the top of the stack
-            result_instructions.emplace_back(pl0_utils::pl0code_fct::LDA,0,0);
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::LDA, 0, 0);
             break;
+        }
         case value_type::ternary:{
             // ternary operator - evaluate condition and push value to stack according to boolean_expression result
             // evaluate conditional
-            ret = content.ternary.boolexpr->generate();
+            ret = content.ternary.boolexpr->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 break;
             }
@@ -208,7 +208,7 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
             int jpcpos = result_instructions.size();
             result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
             // evaluate "true" branch
-            ret = content.ternary.positive->generate();
+            ret = content.ternary.positive->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 break;
             }
@@ -219,7 +219,7 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
 
             result_instructions[jpcpos].arg.value = static_cast<int>(result_instructions.size());
             // evaluate "false" branch
-            ret = content.ternary.negative->generate();
+            ret = content.ternary.negative->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 break;
             }
@@ -232,15 +232,15 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
         case value_type::assign_expression:
             // this will cause assign expression to push left-hand side of assignment to stack after assignment
             content.assign_expr->push_result_to_stack = true;
-            ret = content.assign_expr->generate();
+            ret = content.assign_expr->generate(result_instructions, declared_identifiers, struct_defs);
             break;
             // boolean expression - evaluate, result is stored to stack (0 or 1)
         case value_type::boolean_expression:
-            ret = content.boolexpr->generate();
+            ret = content.boolexpr->generate(result_instructions, declared_identifiers, struct_defs);
             break;
         case value_type::return_value:
             // return value - evaluate the call, caller will store return value to a specific location
-            ret = content.call->generate();
+            ret = content.call->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 break;
             }
@@ -272,7 +272,9 @@ boolean_expression::~boolean_expression() {
     }
 }
 
-generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions) {
+generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                               std::map<std::string, declared_identifier>& declared_identifiers,
+                                               std::map<std::string, std::list<declaration*>*> struct_defs) {
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
@@ -281,12 +283,12 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
         // cmpval2 defined = perform comparison of two values
         if (cmpval2) {
             // evaluate first value
-            ret = cmpval1->generate();
+            ret = cmpval1->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
             // evaluate second value
-            ret = cmpval2->generate();
+            ret = cmpval2->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -308,14 +310,14 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
                 result_instructions.emplace_back(pl0_utils::pl0code_fct::OPR, convert_to_pl0(op));
             }
 
-            auto type1 = cmpval1->get_type_info();
-            auto type2 = cmpval2->get_type_info();
+            auto type1 = cmpval1->get_type_info(declared_identifiers, struct_defs);
+            auto type2 = cmpval2->get_type_info(declared_identifiers, struct_defs);
             if (type1 != type2) {
                 return generate_result(evaluate_error::cannot_assign_type, "Cannot compare values with different types");
             }
         }
         else if (op == operation::none) { // is cmpval1 true = is its value non-zero?
-            ret = cmpval1->generate();
+            ret = cmpval1->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -324,7 +326,7 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
         }
         else if (op == operation::negate) { // negate cmpval1 and evaluate
 
-            ret = cmpval1->generate();
+            ret = cmpval1->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -343,17 +345,17 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
         if (boolexp2) {
 
             // evaluate first expression
-            ret = boolexp1->generate();
+            ret = boolexp1->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
             // evaluate second expression
-            ret = boolexp2->generate();
+            ret = boolexp2->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
 
-            // p-code does not support boolean expressions, so we must use arithmetic operations
+            // p-code does not support boolean expressions, so we must use math operations
             // to compensate for their absence
 
             // 0/1 and 0/1 on stack - perform some operations according to given operation
@@ -383,7 +385,7 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
             if (op == operation::negate) {
 
                 // evaluate it, result is on stack (0 or 1)
-                ret = boolexp1->generate();
+                ret = boolexp1->generate(result_instructions, declared_identifiers, struct_defs);
                 if (ret.result != evaluate_error::ok) {
                     return ret;
                 }
@@ -399,7 +401,7 @@ generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_in
             else {
 
                 // evaluate it and leave result on stack as is
-                ret = boolexp1->generate();
+                ret = boolexp1->generate(result_instructions, declared_identifiers, struct_defs);
                 if (ret.result != evaluate_error::ok) {
                     return ret;
                 }
@@ -421,18 +423,20 @@ method_call::~method_call(){
     }
 }
 
-generation_result method_call::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions) {
+generation_result method_call::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                        std::map<std::string, declared_identifier>& declared_identifiers,
+                                        std::map<std::string, std::list<declaration*>*> struct_defs) {
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
     // check if the identifier exist
-    if (!context.is_identifier_declared(function_identifier)) {
+    if (declared_identifiers.find(function_identifier) == declared_identifiers.end()) {
         std::string msg = "Undeclared identifier '" + function_identifier + "'";
         return generate_result(evaluate_error::undeclared_identifier, msg);
     }
 
     // retrieve declaration info
-    const auto& declinfo = context.get_declared_identifier(function_identifier);
+    const auto& declinfo = declared_identifiers.find(function_identifier)->second;
 
     // identifier must represent a function
     if (!declinfo.type.is_function) {
@@ -440,7 +444,7 @@ generation_result method_call::generate(std::vector<pl0_utils::pl0code_instructi
         return generate_result(evaluate_error::invalid_call, msg);
     }
 
-    if (!parameters && declinfo.func_parameters.size() > 0) {
+    if (!parameters && declinfo.parameters.size() > 0) {
         std::string msg = "Wrong number of parameters for '" + function_identifier + "' function call";
         return generate_result(evaluate_error::invalid_call, msg);
     }
@@ -449,7 +453,7 @@ generation_result method_call::generate(std::vector<pl0_utils::pl0code_instructi
     // the caller then refers to every parameter as to a cell with negative position (-1 in his base is the last parameter pushed by caller, etc.)
     if (parameters) {
 
-        if (parameters->size() != declinfo.func_parameters.size()) {
+        if (parameters->size() != declinfo.parameters.size()) {
             std::string msg = "Wrong number of parameters for '" + function_identifier + "' function call";
             return generate_result(evaluate_error::invalid_call, msg);
         }
@@ -458,15 +462,15 @@ generation_result method_call::generate(std::vector<pl0_utils::pl0code_instructi
 
         for (value* param : *parameters) {
 
-            auto pi = param->get_type_info();
+            auto pi = param->get_type_info(declared_identifiers, struct_defs);
 
-            if (pi != declinfo.func_parameters[parampos]) {
+            if (pi != declinfo.parameters[parampos]) {
                 std::string msg = "Type of parameter " + std::to_string(parampos) + " for '" + function_identifier + "' function call does not match";
                 return generate_result(evaluate_error::invalid_call, msg);
             }
             parampos++;
 
-            ret = param->generate();
+            ret = param->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -484,25 +488,27 @@ generation_result method_call::generate(std::vector<pl0_utils::pl0code_instructi
     return generate_result(evaluate_error::ok, "");
 }
 
-arithmetic::~arithmetic() {
+math::~math() {
     delete lhs_val;
     delete rhs_val;
 }
 
-generation_result arithmetic::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions){
+generation_result math::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                 std::map<std::string, declared_identifier>& declared_identifiers,
+                                 std::map<std::string, std::list<declaration*>*> struct_defs){
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
-    // all arithmetic expressions are binary in grammar
+    // all math expressions are binary in grammar
 
     // evaluate left-hand side
-    ret = lhs_val->generate();
+    ret = lhs_val->generate(result_instructions, declared_identifiers, struct_defs);
     if (ret.result != evaluate_error::ok) {
         return ret;
     }
 
     // evaluate right-hand side
-    ret = rhs_val->generate();
+    ret = rhs_val->generate(result_instructions, declared_identifiers, struct_defs);
     if (ret.result != evaluate_error::ok) {
         return ret;
     }
@@ -510,10 +516,10 @@ generation_result arithmetic::generate(std::vector<pl0_utils::pl0code_instructio
     // perform operation on two top values from stack
     result_instructions.emplace_back(pl0_utils::pl0code_fct::OPR, convert_to_pl0(op));
 
-    auto type1 = lhs_val->get_type_info();
-    auto type2 = rhs_val->get_type_info();
+    auto type1 = lhs_val->get_type_info(declared_identifiers, struct_defs);
+    auto type2 = rhs_val->get_type_info(declared_identifiers, struct_defs);
     if (type1.parent_type != TYPE_INT || type2.parent_type != TYPE_INT) {
-        return generate_result(evaluate_error::cannot_assign_type, "Cannot perform arithmetic operation on non-integer values");
+        return generate_result(evaluate_error::cannot_assign_type, "Cannot perform math operation on non-integer values");
     }
 
     return generate_result(evaluate_error::ok, "");
@@ -525,19 +531,20 @@ expression::~expression() {
     }
 }
 
-generation_result expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions) {
+generation_result expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                       std::map<std::string, declared_identifier>& declared_identifiers,
+                                       std::map<std::string, std::list<declaration*>*> struct_defs) {
 
-    generation_result ret = generate_result(evaluate_error::invalid_state, "Invalid State");
     // wrap "value" evaluation, but ignore return value (discard stack value by calling INT 0 -1)
     if (evaluate_value) {
         evaluate_value->return_value_ignored = true;
-        ret = evaluate_value->generate();
+        return evaluate_value->generate(result_instructions, declared_identifiers, struct_defs);
     }
     else {
-        context.error_message = "Invalid state - symbol 'expression' could not be evaluated in given context";
+        return generate_result(evaluate_error::invalid_state, "Invalid state - symbol 'expression' could not be evaluated in given context");
     }
 
-    return ret;
+
 }
 
 assign_expression::~assign_expression() {
@@ -547,9 +554,11 @@ assign_expression::~assign_expression() {
     delete assign_value;
 }
 
-generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions) {
+generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                              std::map<std::string, declared_identifier>& declared_identifiers,
+                                              std::map<std::string, std::list<declaration*>*> struct_defs) {
 
-    if (!context.is_identifier_declared(identifier)) {
+    if (declared_identifiers.find(identifier) != declared_identifiers.end()) {
         std::string msg = "Undeclared identifier '" + identifier + "'";
         return generate_result(evaluate_error::undeclared_identifier, msg);
     }
@@ -557,21 +566,22 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
     generation_result res = generate_result(evaluate_error::ok, "");
 
     // evaluate the expression to be assigned to the given identifier
-    res = assign_value->generate();
+    res = assign_value->generate(result_instructions, declared_identifiers, struct_defs);
     if (res.result != evaluate_error::ok) {
         return res;
     }
 
-    if (context.is_identifier_declared(identifier) && context.declared_identifiers[identifier].type.major_type == TYPE_META_STRUCT) {
+    if (declared_identifiers.find(identifier) != declared_identifiers.end() &&
+            declared_identifiers[identifier].type.parent_type == TYPE_META_STRUCT) {
         // assigning to a struct number
         int size = 0;
 
         // compute the offset
-        for (auto def :*context.struct_defs[context.declared_identifiers[identifier].struct_name]){
+        for (auto def :*struct_defs[declared_identifiers[identifier].struct_name]){
             // check whether member identifier matches the definition identifier
             if (struct_member_identifier == def->identifier) {
 
-                if (def->type != assign_value->get_type_info()) {
+                if (def->type != assign_value->get_type_info(declared_identifiers, struct_defs)) {
                     std::string msg = "Cannot assign value to member '" + struct_member_identifier + "' of '" + identifier + "' due to different data types";
                     return generate_result(evaluate_error::cannot_assign_type, msg);
                 }
@@ -579,7 +589,7 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
                 break;
             }
 
-            size += def->determine_size(context);
+            size += def->determine_size();
         }
         // new pcode_arg with the given identifier and summed size as offset
         auto arg = pl0_utils::pl0code_arg(identifier);
@@ -589,13 +599,13 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
         // is the assignment used as a right-hand side of another assignment?
         if (push_result_to_stack) {
             value tmp(identifier, struct_member_identifier);
-            tmp.generate();
+            tmp.generate(result_instructions, declared_identifiers, struct_defs);
         }
 
     } else if (array_index == nullptr) {
         result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, identifier);
 
-        const auto& tp = context.get_declared_identifier(identifier).type;
+        const auto& tp = declared_identifiers.find(identifier)->second.type;
 
         // if left-hand side is const, we cannot assign
         if (tp.is_const) {
@@ -604,7 +614,7 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
         }
 
         // check if LHS type is the same as RHS type
-        if (context.get_declared_identifier(identifier).type != assign_value->get_type_info()) {
+        if (declared_identifiers.find(identifier)->second.type != assign_value->get_type_info(declared_identifiers, struct_defs)) {
             std::string msg = "Cannot assign value to variable '" + identifier + "' due to different data types";
             return generate_result(evaluate_error::cannot_assign_type, msg);
         }
@@ -612,12 +622,12 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
         // is the assignment used as a right-hand side of another assignment?
         if (push_result_to_stack) {
             value tmp(new variable_ref(identifier.c_str()));
-            tmp.generate();
+            tmp.generate(result_instructions, declared_identifiers, struct_defs);
         }
     } else {
         // array index is not null, an array is being accessed an array
 
-        if (context.get_declared_identifier(identifier).type != assign_value->get_type_info()) {
+        if (declared_identifiers.find(identifier)->second.type != assign_value->get_type_info(declared_identifiers, struct_defs)) {
             std::string msg = "Cannot assign value to variable '" + identifier + "' due to different data types";
             return generate_result(evaluate_error::cannot_assign_type, msg);
         }
@@ -626,7 +636,7 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
         result_instructions.emplace_back(pl0_utils::pl0code_fct::LIT, 0);
 
         // evaluate the array index
-        array_index->generate();
+        array_index->generate(result_instructions, declared_identifiers, struct_defs);
 
         // put the address of the start of the array to the top of the stack
         result_instructions.emplace_back(pl0_utils::pl0code_fct::LIT, pl0_utils::pl0code_arg(identifier));
@@ -640,7 +650,7 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
         // is the assignment used as a right-hand side of another assignment?
         if (push_result_to_stack) {
             value tmp(new variable_ref(identifier.c_str()), array_index);
-            tmp.generate();
+            tmp.generate(result_instructions, declared_identifiers, struct_defs);
         }
     }
 

@@ -7,10 +7,10 @@
 
 
 // function declaration structure
-struct function_declaration : public global_statement {
+struct method_declaration : public global_statement {
 
-    function_declaration(declaration* fdecl, block* cmds, std::list<declaration*>* param_list = nullptr);
-    virtual ~function_declaration();
+    method_declaration(declaration* fdecl, block* cmds, std::list<declaration*>* param_list = nullptr);
+    virtual ~method_declaration();
 
     declaration* decl;
     block* code_block;

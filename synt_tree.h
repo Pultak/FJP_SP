@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 
 #include <stack>
@@ -42,7 +43,6 @@ struct declared_identifier;
 
 
 struct generation_result{
-public:
     evaluate_error result;
     std::string message;
 };
@@ -55,7 +55,7 @@ generation_result generate_result(evaluate_error result, std::string message){
 struct global_statement {
     virtual generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                        std::map<std::string, declared_identifier>& declared_identifiers,
-                                       int& identifier_cell, int& frame_size) = 0;
+                                       int& frame_size, bool global) = 0;
 };
 
 
@@ -74,7 +74,9 @@ struct declaration {
     std::string identifier;
     pl0_utils::pl0type_info type;
     int array_size;
+    //structure parameters
     std::string struct_name;
+    int type_indice;
 
     int override_frame_pos = std::numeric_limits<int>::max();
 
@@ -93,24 +95,45 @@ struct declaration {
         return size;
     }
 
-    generation_result generate(int& identifier_cell, int& frame_size) {
+    generation_result generate(int& identifier_cell, int& frame_size, bool global,
+                               std::map<std::string, std::list<declaration*>*> struct_defs) {
 
-        //todo if struct => verifying struct existence
 
-        // get size actual type
+        //todo define struct
+        // if it's a struct declaration, verify its existence
+        if (type.parent_type == TYPE_META_STRUCT) {
+            //if struct not defined
+            auto a = struct_defs.find(struct_name);
+            if (a == struct_defs.end()) {
+                return generate_result(evaluate_error::unknown_typename, "Unknown type name '" + struct_name + "'");
+            }
+            auto b = (*a->second).begin();
+
+            auto decl = a->second;
+            if(decl && (*decl).empty()){
+                type.child_type = (*decl).begin().operator*()->type_indice;
+            }else{
+                //todo check if good?
+                return generate_result(evaluate_error::unknown_typename, "Unknown type name '" + struct_name + "'");
+            }
+        }
+        // get size of actual type
         int size = determine_size();
 
-        // we did not override position
-        if (override_frame_pos == std::numeric_limits<int>::max()) {
+        if(global){
+            //resize global frame
             identifier_cell = frame_size;
             frame_size += size;
+        }else {
+            // we did not override position
+            if (override_frame_pos == std::numeric_limits<int>::max()) {
+                identifier_cell = frame_size;
+                frame_size += size;
+            } else {
+                // position override is done for function parameters
+                identifier_cell = override_frame_pos;
+            }
         }
-        else {
-            // position override is done for function parameters
-            identifier_cell = override_frame_pos;
-        }
-        //todo global variables
-
         return generate_result(evaluate_error::ok, "");
     }
 };

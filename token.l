@@ -1,8 +1,10 @@
 %option noyywrap
 %{
+#pragma once
 
 #include <cstdio>
 #include <cstring>
+#include "../file.h"
 #include "grammar.tab.h"
 
 

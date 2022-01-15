@@ -3,7 +3,7 @@
 //
 #include "method.h"
 
-function_declaration::function_declaration(declaration* fdecl, block* cmds, std::list<declaration*>* param_list)
+method_declaration::method_declaration(declaration* fdecl, block* cmds, std::list<declaration*>* param_list)
         : decl(fdecl), code_block(cmds), parameters_list(param_list) {
     // full function definition with code block
     if (code_block) {
@@ -13,15 +13,15 @@ function_declaration::function_declaration(declaration* fdecl, block* cmds, std:
     decl->type.is_function = true;
 }
 
-function_declaration::~function_declaration() {
+method_declaration::~method_declaration() {
     delete decl;
     delete code_block;
     delete parameters_list;
 }
 
-generation_result function_declaration::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
-                           std::map<std::string, declared_identifier>& declared_identifiers,
-                           int& frame_size, bool global) {
+generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                               std::map<std::string, declared_identifier>& declared_identifiers,
+                                               int& frame_size, bool global) {
     bool forward_declared = (code_block == nullptr);
 
     std::vector<pl0_utils::pl0type_info> param_types;
@@ -62,7 +62,7 @@ generation_result function_declaration::generate(std::vector<pl0_utils::pl0code_
         //todo what will happen after method destructor called? injected_declarations
 
         return_statement = false;
-        ret = code_block->generate(result_instructions);
+        ret = code_block->generate(result_instructions, return_statement);
 
         if (ret.result != evaluate_error::ok) {
             return ret;
@@ -81,3 +81,4 @@ generation_result function_declaration::generate(std::vector<pl0_utils::pl0code_
 
     return generate_result(evaluate_error::ok, "");
 }
+

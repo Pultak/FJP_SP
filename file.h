@@ -1,11 +1,12 @@
+#pragma once
 #include <list>
 #include <string>
 #include <vector>
 #include <stack>
 
-#include "synt_tree.h"
-#include "pl0_utils.h"
 #include "code_block.h"
+#include "method.h"
+#include "struct.h"
 
 //todo add structure parsing
 
@@ -19,6 +20,10 @@ public:
 
     std::list<global_statement*>* statements;
     std::stack<block*> code_scopes;
+
+    // map of declared identifiers in the global scope
+    std::map<std::string, declared_identifier> global_identifiers;
+
 
     std::vector<pl0_utils::pl0code_instruction> generated_instructions;
     std::string generation_message;
@@ -60,8 +65,9 @@ public:
         generated_instructions[1].arg.value = static_cast<int>(generated_instructions.size());
 
         for (auto& inits : global_initializers) {
-            inits.second->generate();
-            find_identifier(inits.first, lvl, val);
+            //todo global_identifiers can make problems
+            inits.second->generate(generated_instructions, global_identifiers, struct_defs);
+            find_identifier(inits.first, lvl, val, nullptr);
             generated_instructions.emplace_back(pl0_utils::pl0code_fct::STO, val, lvl);
         }
         //todo is the position always static? 2th instruction is init jump
@@ -73,7 +79,7 @@ public:
         for (int pos = 0; pos < generated_instructions.size(); pos++) {
             auto& instr = generated_instructions[pos];
             if (instr.instruction == pl0_utils::pl0code_fct::CAL && instr.arg.isref && instr.arg.isfunc) {
-                if (find_identifier(instr.arg.symbolref, lvl, val)) {
+                if (find_identifier(instr.arg.symbolref, lvl, val, nullptr)) {
                     instr.arg.resolve(val);
                     instr.lvl = 0;
                 }
