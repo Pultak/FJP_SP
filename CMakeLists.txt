@@ -12,4 +12,4 @@ bison_target(bison
         DEFINES_FILE ${CMAKE_BINARY_DIR}/grammar.tab.h)
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_FPERMISSIVE_FLAGS}")
 add_definitions(${GCC_FPERMISSIVE_FLAGS})
-add_executable(FJP_SP main.cpp  ${FLEX_flex_OUTPUTS} ${BISON_bison_OUTPUTS} grammar.y token.l file.h synt_tree.cpp synt_tree.h method.h method.cpp code_block.h code_block.cpp value.cpp value.h struct.h struct.cpp)
+add_executable(FJP_SP main.cpp  ${FLEX_flex_OUTPUTS} ${BISON_bison_OUTPUTS} grammar.y token.l file.h file.cpp synt_tree.cpp synt_tree.h method.h method.cpp code_block.h code_block.cpp value.cpp value.h struct.h struct.cpp file.cpp)

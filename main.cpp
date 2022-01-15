@@ -38,6 +38,7 @@ int main(int argc, char* argv[]){
 
     //semantic analysis + code generation
 
+    std::cout << "Starting semantic analysis and pl0 generation" << std::endl;
     generation_result result = ast_root->generate();
     if (result.result == evaluate_error::ok){
         //default saving

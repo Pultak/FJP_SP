@@ -19,8 +19,8 @@ struct struct_definition : public global_statement {
                                     int& frame_size, bool global) override {
 
         // define struct with given name and contents
-        if (struct_defs.find(struct_name) == struct_defs.end()) {
-            struct_defs[struct_name] = contents;
+        if (get_struct_defs().find(struct_name) == get_struct_defs().end()) {
+            get_struct_defs()[struct_name] = contents;
             //is not null and is not empty
             if(contents && (*contents).empty()){
                 ++last_struct_index;

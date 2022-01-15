@@ -41,7 +41,7 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
     if (!forward_declared) {
 
         // store the address this symbol is defined on
-        global_identifier_cell[decl->identifier] = static_cast<int>(result_instructions.size());
+        get_global_identifier_cell()[decl->identifier] = static_cast<int>(result_instructions.size());
 
         std::list<std::unique_ptr<variable_declaration>> param_decl;
 

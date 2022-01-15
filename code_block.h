@@ -16,12 +16,10 @@ struct condition;
 
 struct block;
 
-std::map<std::string, int> global_identifier_cell;
-// global initializers table
-std::map<std::string, value*> global_initializers;
 
-
-std::map<std::string, std::list<declaration*>*> struct_defs;
+std::map<std::string, std::list<declaration*>*> get_struct_defs();
+std::map<std::string, value*> get_global_initializers();
+std::map<std::string, int> get_global_identifier_cell();
 
 // declare identifier in current scope
 generation_result declare_identifier(const std::string& identifier, const pl0_utils::pl0type_info type,
@@ -118,7 +116,7 @@ struct while_loop : public loop {
 
         // evaluate condition
         int condpos = static_cast<int>(result_instructions.size());
-        ret = cond_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        ret = cond_expr->generate(result_instructions, declared_identifiers, get_struct_defs());
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -166,7 +164,7 @@ struct for_loop : public loop {
         generation_result ret;
 
         // evaluate initialization expression
-        ret = init_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        ret = init_expr->generate(result_instructions, declared_identifiers, get_struct_defs());
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -175,7 +173,7 @@ struct for_loop : public loop {
         int repeatpos = static_cast<int>(result_instructions.size());
 
         // evaluate condition value
-        ret = cond_val->generate(result_instructions, declared_identifiers, struct_defs);
+        ret = cond_val->generate(result_instructions, declared_identifiers, get_struct_defs());
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -194,7 +192,7 @@ struct for_loop : public loop {
         }
 
         // evaluate modifying expression
-        ret = mod_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        ret = mod_expr->generate(result_instructions, declared_identifiers, get_struct_defs());
         if (ret.result != evaluate_error::ok) {
             return ret;
         }
@@ -228,41 +226,7 @@ struct variable_declaration : public global_statement {
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               int& frame_size, bool global) override {
-        if(global){
-            //todo global probnlme?
-        }
-
-        auto id = declared_identifiers.at(decl->identifier);
-        generation_result ret = decl->generate(id.identifier_address, frame_size, global, struct_defs);
-        if (ret.result != evaluate_error::ok) {
-            return ret;
-        }
-
-        // declare identifier if not previously declared
-        ret = declare_identifier(decl->identifier, decl->type, declared_identifiers, decl->struct_name);
-        if (ret.result != evaluate_error::ok) {
-            return ret;
-        }
-
-        // is this declaration initialized?
-        if (initialized_by) {
-            ret = initialized_by->generate(result_instructions, declared_identifiers, struct_defs);
-            if (ret.result != evaluate_error::ok) {
-                return ret;
-            }
-
-            if (initialized_by->get_type_info(declared_identifiers, struct_defs) != decl->type) {
-                return generate_result(evaluate_error::cannot_assign_type, "Initializer type of '" + decl->identifier + "' does not match the variable type");
-            }
-
-            // store evaluation result (stack top) to a given variable
-            result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, decl->identifier);
-            global_initializers[decl->identifier] = initialized_by;
-        }
-        return generate_result(evaluate_error::ok,"");
-
-    }
+                               int& frame_size, bool global) override;
 };
 
 // condition structure block
@@ -281,7 +245,7 @@ struct condition{
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers){
 
-        generation_result ret = cond_expr->generate(result_instructions, declared_identifiers, struct_defs);
+        generation_result ret = cond_expr->generate(result_instructions, declared_identifiers, get_struct_defs());
         if (ret.result != evaluate_error::ok) {
             return ret;
         }

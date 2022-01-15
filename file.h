@@ -64,9 +64,9 @@ public:
 
         generated_instructions[1].arg.value = static_cast<int>(generated_instructions.size());
 
-        for (auto& inits : global_initializers) {
+        for (auto& inits : get_global_initializers()) {
             //todo global_identifiers can make problems
-            inits.second->generate(generated_instructions, global_identifiers, struct_defs);
+            inits.second->generate(generated_instructions, global_identifiers, get_struct_defs());
             find_identifier(inits.first, lvl, val, nullptr);
             generated_instructions.emplace_back(pl0_utils::pl0code_fct::STO, val, lvl);
         }

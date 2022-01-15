@@ -3,3 +3,7 @@
 //
 
 #include "struct.h"
+
+struct_definition::~struct_definition() {
+    delete contents;
+}

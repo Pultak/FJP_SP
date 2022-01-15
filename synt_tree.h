@@ -47,9 +47,7 @@ struct generation_result{
     std::string message;
 };
 
-generation_result generate_result(evaluate_error result, std::string message){
-    return generation_result{result, std::move(message)};
-}
+generation_result generate_result(evaluate_error result, std::string message);
 
 
 struct global_statement {
