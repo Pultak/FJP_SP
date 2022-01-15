@@ -163,4 +163,14 @@ namespace pl0_utils{
         }
     };
 
+
+#pragma pack(push, 1)
+
+    struct binary_instruction {
+        pl0_utils::pl0code_fct f;
+        uint8_t l;		// [0..254] / 255 = global scope
+        int a;
+    };
+
+#pragma pack(pop)
 }

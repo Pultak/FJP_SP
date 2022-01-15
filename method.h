@@ -1,5 +1,4 @@
-#ifndef FJP_SP_METHOD_H
-#define FJP_SP_METHOD_H
+#pragma once
 
 #include <memory>
 #include "synt_tree.h"
@@ -23,9 +22,4 @@ struct method_declaration : public global_statement {
                                std::map<std::string, declared_identifier>& declared_identifiers,
                                int& frame_size, bool global) override;
 };
-
-
-
-
-
-#endif //FJP_SP_METHOD_H
+ //FJP_SP_METHOD_H
