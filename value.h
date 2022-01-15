@@ -54,11 +54,11 @@ struct value{
     std::string name; //struct_name
     bool return_value_ignored = false;
 
-    value(int val) : value_type(value_type::const_int_literal) {
+    value(int val) : value_type(value_type::const_number_lit) {
         content.number_value = val;
     }
 
-    value(const std::string& val) : value_type(value_type::const_str_literal) {
+    value(const std::string& val) : value_type(value_type::const_string_lit) {
 
         // removing quote marks
         if (val.size() >= 2 && val[0] == '\"' && val[val.size() - 1] == '\"') {
@@ -96,7 +96,7 @@ struct value{
         content.call = func_call;
     }
 
-    value(variable_ref* array, value* index) : value_type(value_type::array_element) {
+    value(variable_ref* array, value* index) : value_type(value_type::array_member) {
         content.array_element.array = array;
         content.array_element.index = index;
     }
@@ -197,7 +197,7 @@ struct boolean_expression {
     // boolean expression(s) to be considered
     boolean_expression* boolexp1 = nullptr, *boolexp2 = nullptr;
 
-    generation_result generate();
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions);
 };
 
 
@@ -214,7 +214,7 @@ struct method_call{
     // method parameters
     std::list<value*>* parameters;
 
-    generation_result generate();
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions);
 };
 
 
@@ -287,7 +287,7 @@ struct arithmetic {
     // operation to be performed
     operation op;
 
-    generation_result generate();
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions);
 };
 
 // wrapper of value that helps to discard stack record
@@ -303,7 +303,7 @@ struct expression {
 
     value* evaluate_value = nullptr;
 
-    virtual generation_result generate();
+    virtual generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions);
 };
 
 
@@ -332,7 +332,9 @@ struct assign_expression : public expression {
     //if this is a right-hand side of another assignment, push the resulting left-hand side to stack
     bool push_result_to_stack = false;
 
-    generation_result generate() override;
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions) override;
 };
+
+
 
 #endif //FJP_SP_VALUE_H
