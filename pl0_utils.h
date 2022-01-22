@@ -22,6 +22,7 @@ namespace pl0_utils{
         JPC,
         STA,
         LDA,
+        RET
     };
 
     //pl0 INT operations
@@ -127,6 +128,9 @@ namespace pl0_utils{
                     break;
                 case pl0code_fct::LDA:
                     ret = "LDA";
+                    break;
+                case pl0code_fct::RET:
+                    ret = "RET";
                     break;
                 default:
                     ret = "???";

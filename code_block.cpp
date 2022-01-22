@@ -26,63 +26,75 @@ std::map<std::string, int> get_global_identifier_cell() {
     return global_identifier_cell;
 }
 
-//todo change
-// declare identifier in current scope
+// declare identifier into map
 generation_result declare_identifier(const std::string& identifier, const pl0_utils::pl0type_info type,
                                   std::map<std::string, declared_identifier>& declared_identifiers,
                                   const std::string& struct_name, bool forward_decl,
-                                  const std::vector<pl0_utils::pl0type_info>& types) {
+                                  const std::vector<pl0_utils::pl0type_info>& types, bool global) {
 
-    auto itr = declared_identifiers.find(identifier);
+    if(global){
 
-    // identifier must not exist (at all - do not allow overlapping)
-    if (itr == declared_identifiers.end()) {
-        declared_identifiers[identifier] = {
-                type,
-                struct_name,
-                forward_decl,
-                types
-        };
-        return generate_result(evaluate_error::ok, "");
-    }
-    // forward declaration does not trigger redeclaration error
-    else if (itr->second.forward_declaration || forward_decl) {
+    }//else{
+        auto itr = declared_identifiers.find(identifier);
 
-        auto& decl = itr->second;
-
-        // always check signature (return type and parameters)
-        if (decl.type.parent_type != type.parent_type || decl.type.child_type != type.child_type
-            || decl.parameters.size() != types.size()) {
-            return generate_result(evaluate_error::redeclaration_different_types, "Identifier '" + identifier + "' redeclaration with different types (return value and/or parameters)");
+        // identifier must not exist (at all - do not allow overlapping)
+        if (itr == declared_identifiers.end()) {
+            declared_identifiers[identifier] = {
+                    true,
+                    type,
+                    struct_name,
+                    forward_decl,
+                    types
+            };
+            return generate_result(evaluate_error::ok, "");
         }
-        for (size_t i = 0; i < types.size(); i++) {
-            if (decl.parameters[i].parent_type != types[i].parent_type || decl.parameters[i].child_type != types[i].child_type) {
+            // forward declaration does not trigger redeclaration error
+        else if (itr->second.forward_declaration || forward_decl) {
+
+            auto& decl = itr->second;
+
+            // always check signature (return type and parameters)
+            if (decl.type.parent_type != type.parent_type || decl.type.child_type != type.child_type
+                || decl.parameters.size() != types.size()) {
                 return generate_result(evaluate_error::redeclaration_different_types, "Identifier '" + identifier + "' redeclaration with different types (return value and/or parameters)");
             }
-        }
+            for (size_t i = 0; i < types.size(); i++) {
+                if (decl.parameters[i].parent_type != types[i].parent_type || decl.parameters[i].child_type != types[i].child_type) {
+                    return generate_result(evaluate_error::redeclaration_different_types, "Identifier '" + identifier + "' redeclaration with different types (return value and/or parameters)");
+                }
+            }
 
-        // if current declaration attempt is not a forward declaration, mark it in declared record
-        if (!forward_decl) {
-            decl.forward_declaration = false;
+            // if current declaration attempt is not a forward declaration, mark it in declared record
+            if (!forward_decl) {
+                decl.forward_declaration = false;
+            }
+            return generate_result(evaluate_error::ok, "");
+        }else if(!itr->second.declared){
+            itr->second.type = type;
+            itr->second.struct_name = struct_name;
+            itr->second.forward_declaration = forward_decl;
+            itr->second.parameters = types;
+            return generate_result(evaluate_error::ok, "");
         }
-        return generate_result(evaluate_error::ok, "");
-    }
+    //}
+
 
     return generate_result(evaluate_error::redeclaration, "Identifier '" + identifier + "' redeclaration");
 }
 
-bool find_identifier(const std::string& identifier, int& level, int& offset, block* scope){
+bool find_identifier(const std::string& identifier, int& level, int& offset,
+                     std::map<std::string, declared_identifier> declared_identifiers, bool global){
 
     // look for identifier in scope
-    if (scope) {
-        auto res = scope->declared_identifiers.find(identifier);
-        if (res != scope->declared_identifiers.end()) {
-            level = 0;
-            //todo address needed?
+    if (!declared_identifiers.empty()) {
+        auto res = declared_identifiers.find(identifier);
+        if (res != declared_identifiers.end()) {
+            level = global? LevelGlobal : 0;
             offset = res->second.identifier_address;
             return true;
         }
     }
+    //is it forward declared?
     auto res = global_identifier_cell.find(identifier);
     if (res != global_identifier_cell.end()) {
         level = LevelGlobal;
@@ -97,29 +109,6 @@ bool undeclare_identifier(const std::string& identifier,
                           std::map<std::string, declared_identifier>& declared_identifiers) {
     if (declared_identifiers.find(identifier) != declared_identifiers.end()) {
         declared_identifiers.erase(identifier);
-        return true;
-    }
-
-    return false;
-}
-
-bool find_identifier(const std::string& identifier, int& level, int& offset,
-                     std::map<std::string, declared_identifier> declared_identifiers) {
-
-    //check local scope
-    auto res = declared_identifiers.find(identifier);
-    if (res != declared_identifiers.end()) {
-        level = 0;
-        offset = res->second.identifier_address;
-        return true;
-    }
-
-
-    // look to global scope
-    auto globalRes = global_identifier_cell.find(identifier);
-    if (globalRes != global_identifier_cell.end()) {
-        level = LevelGlobal;
-        offset = globalRes->second;
         return true;
     }
 
@@ -163,8 +152,8 @@ generation_result command::generate(std::vector<pl0_utils::pl0code_instruction>&
         ret = command_value->generate(result_instructions, declared_identifiers, struct_defs);
 
         // return value of function is on top of the stack
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, ReturnValueCell, 1); // return value is stored as first cell (index = 3) of caller scope (level = 1)
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::OPR, pl0_utils::pl0code_opr::RETURN);
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, 1, ReturnValueCell); // return value is stored as first cell (index = 3) of caller scope (level = 1)
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::RET, pl0_utils::pl0code_opr::RETURN);
 
         return_val = true;
     }
@@ -182,10 +171,11 @@ block::~block() {
 }
 
 generation_result block::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                                  std::map<std::string, declared_identifier> declared_identifiers,
                                   bool& return_val) {
 
     int function_address = -1;
-
+    this->passed_identifiers_count = declared_identifiers.size();
     // if this is a function scope, prepare "frame allocation mark"
     // this will be filled later with "CallBlockBaseSize + size of local variables"
     // non-function scopes (like a block in condition/loop/...) do not allocate stack frames
@@ -198,8 +188,8 @@ generation_result block::generate(std::vector<pl0_utils::pl0code_instruction>& r
     // this is typically just a case of function call parameters (must be declared in callee context)
     if (injected_declarations) {
         for (auto& decl : *injected_declarations) {
-            //todo global identifiers needed too?
-            decl->generate(result_instructions, declared_identifiers, frame_size, false);
+            auto ret = decl->generate(result_instructions, declared_identifiers, frame_size, false);
+            continue;
         }
     }
 
@@ -229,7 +219,8 @@ generation_result block::generate(std::vector<pl0_utils::pl0code_instruction>& r
             // if the argument is a reference, try to resolve
             if (instr.arg.isref) {
                 // find identifier
-                bool found = find_identifier(instr.arg.symbolref, lvl, val, this);
+                //todo can be block global? if yes then change false -> some variable
+                bool found = find_identifier(instr.arg.symbolref, lvl, val, declared_identifiers, false);
                 if (found) {
                     // resolve if found
                     instr.arg.resolve(val);
@@ -237,10 +228,10 @@ generation_result block::generate(std::vector<pl0_utils::pl0code_instruction>& r
                 }
             }
         }
-
+        int to_clean = declared_identifiers.size() - this->passed_identifiers_count;
         // undeclare all identifiers
-        for (auto& decl : declared_identifiers) {
-            undeclare_identifier(decl.second.struct_name, declared_identifiers);
+        for(auto it = declared_identifiers.rbegin(); it != declared_identifiers.rend() && to_clean > 0; ++it, --to_clean){
+            undeclare_identifier(it->second.struct_name, declared_identifiers);
         }
     }
 
@@ -272,11 +263,10 @@ condition::~condition() {
 generation_result variable_declaration::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                            std::map<std::string, declared_identifier>& declared_identifiers,
                            int& frame_size, bool global) {
-    if(global){
-        //todo global probnlme?
-    }
 
-    auto id = declared_identifiers.at(decl->identifier);
+    //todo will same identifiers rewrite?
+    declared_identifiers[decl->identifier] = {};
+    auto& id = declared_identifiers.at(decl->identifier);
     generation_result ret = decl->generate(id.identifier_address, frame_size, global, get_struct_defs());
     if (ret.result != evaluate_error::ok) {
         return ret;
@@ -290,18 +280,21 @@ generation_result variable_declaration::generate(std::vector<pl0_utils::pl0code_
 
     // is this declaration initialized?
     if (initialized_by) {
-        ret = initialized_by->generate(result_instructions, declared_identifiers, get_struct_defs());
-        if (ret.result != evaluate_error::ok) {
-            return ret;
-        }
+        if(global){
+            global_initializers[decl->identifier] = initialized_by;
+        }else{
+            ret = initialized_by->generate(result_instructions, declared_identifiers, get_struct_defs());
+            if (ret.result != evaluate_error::ok) {
+                return ret;
+            }
 
-        if (initialized_by->get_type_info(declared_identifiers, get_struct_defs()) != decl->type) {
-            return generate_result(evaluate_error::cannot_assign_type, "Initializer type of '" + decl->identifier + "' does not match the variable type");
-        }
+            if (initialized_by->get_type_info(declared_identifiers, get_struct_defs()) != decl->type) {
+                return generate_result(evaluate_error::cannot_assign_type, "Initializer type of '" + decl->identifier + "' does not match the variable type");
+            }
 
-        // store evaluation result (stack top) to a given variable
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, decl->identifier);
-        global_initializers[decl->identifier] = initialized_by;
+            // store evaluation result (stack top) to a given variable
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::STO, decl->identifier);
+        }
     }
     return generate_result(evaluate_error::ok,"");
 

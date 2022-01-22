@@ -32,7 +32,9 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
     }
 
     // declare new function identifier
-    generation_result ret = declare_identifier(decl->identifier, decl->type, code_block->declared_identifiers, decl->struct_name, forward_declared, param_types);
+    generation_result ret = declare_identifier(decl->identifier, decl->type,
+                                               declared_identifiers, decl->struct_name,
+                                               forward_declared, param_types);
     if (ret.result != evaluate_error::ok) {
         return ret;
     }
@@ -41,7 +43,7 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
     if (!forward_declared) {
 
         // store the address this symbol is defined on
-        get_global_identifier_cell()[decl->identifier] = static_cast<int>(result_instructions.size());
+        declared_identifiers[decl->identifier].identifier_address = static_cast<int>(result_instructions.size());
 
         std::list<std::unique_ptr<variable_declaration>> param_decl;
 
@@ -62,7 +64,7 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
         //todo what will happen after method destructor called? injected_declarations
 
         return_statement = false;
-        ret = code_block->generate(result_instructions, return_statement);
+        ret = code_block->generate(result_instructions, declared_identifiers, return_statement);
 
         if (ret.result != evaluate_error::ok) {
             return ret;
@@ -76,7 +78,7 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
             }
         }
 
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::OPR, pl0_utils::pl0code_opr::RETURN);
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::RET, pl0_utils::pl0code_opr::RETURN);
     }
 
     return generate_result(evaluate_error::ok, "");

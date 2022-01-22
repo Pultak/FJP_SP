@@ -27,8 +27,8 @@ constexpr int ReturnValueCell = 3;
 enum class evaluate_error {
     ok,                             // all OK
     undeclared_identifier,          // identifier not declared
-    undeclared_struct_member,       // struct does not contain member todo add structs
-    unknown_typename,               // struct was not found todo add structs
+    undeclared_struct_member,       // struct does not contain member
+    unknown_typename,               // struct was not found
     unresolved_reference,           // unknown symbol
     redeclaration,                  // identifier redeclaration
     redeclaration_different_types,  // function identifier redeclaration with different types (return type, parameters)
@@ -60,14 +60,10 @@ struct global_statement {
 
 struct declaration {
     declaration(int entity_major_type, const std::string& entity_identifier, int arraySize = 0)
-            : type{ entity_major_type, 0 }, identifier(entity_identifier), array_size(arraySize) {
-        //
-    }
+            : type{ entity_major_type, 0 }, identifier(entity_identifier), array_size(arraySize) {}
 
     declaration(int entity_major_type, std::string struct_name_identifier, std::string entity_identifier)
-            : type{ entity_major_type, 0 }, identifier(entity_identifier), array_size(0), struct_name(struct_name_identifier) {
-        //
-    }
+            : type{ entity_major_type, 0 }, identifier(entity_identifier), array_size(0), struct_name(struct_name_identifier) {}
 
     std::string identifier;
     pl0_utils::pl0type_info type;
@@ -79,25 +75,29 @@ struct declaration {
     int override_frame_pos = std::numeric_limits<int>::max();
 
     // get size of the declaration for the stack frame
-    int determine_size() const {
+    int determine_size(std::map<std::string, std::list<declaration*>*> struct_defs) const {
         int size = 0;
+        //structure size is variable depending on its value
+        if (type.parent_type == TYPE_META_STRUCT) {
+            auto struct_declaration = struct_defs.find(struct_name);
+            // prior is_struct_defined call ensures existence
+            for (auto decl : *struct_declaration->second) {
+                size += decl->determine_size(struct_defs);
+            }
+        }
         // 1 cell needed for types like bool, char and int
-        if (type.parent_type == TYPE_BOOL || type.parent_type == TYPE_CHAR || type.parent_type == TYPE_INT) {
+        else if (type.parent_type == TYPE_BOOL || type.parent_type == TYPE_CHAR || type.parent_type == TYPE_INT) {
             size = 1;
             if (array_size > 0) {
                 size *= array_size;
             }
         }
-        //todo define structs => their size can be variable
-
         return size;
     }
 
     generation_result generate(int& identifier_cell, int& frame_size, bool global,
                                std::map<std::string, std::list<declaration*>*> struct_defs) {
 
-
-        //todo define struct
         // if it's a struct declaration, verify its existence
         if (type.parent_type == TYPE_META_STRUCT) {
             //if struct not defined
@@ -116,7 +116,7 @@ struct declaration {
             }
         }
         // get size of actual type
-        int size = determine_size();
+        int size = determine_size(struct_defs);
 
         if(global){
             //resize global frame
@@ -138,6 +138,7 @@ struct declaration {
 
 // Already declared identifier wrapper structure
 struct declared_identifier {
+    bool declared = false;
     // value type of the identifier
     pl0_utils::pl0type_info type = { TYPE_VOID, 0 };
     // if structure then specify name

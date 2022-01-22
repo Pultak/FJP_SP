@@ -19,15 +19,17 @@ struct block;
 
 std::map<std::string, std::list<declaration*>*> get_struct_defs();
 std::map<std::string, value*> get_global_initializers();
+//todo change identifier cell to declared identifiers?
 std::map<std::string, int> get_global_identifier_cell();
 
 // declare identifier in current scope
 generation_result declare_identifier(const std::string& identifier, const pl0_utils::pl0type_info type,
                                   std::map<std::string, declared_identifier>& declared_identifiers,
                                   const std::string& struct_name = "", bool forward_decl = false,
-                                  const std::vector<pl0_utils::pl0type_info>& types = {});
+                                  const std::vector<pl0_utils::pl0type_info>& types = {}, bool global = false);
 
-bool find_identifier(const std::string& identifier, int& level, int& offset, block* scope);
+bool find_identifier(const std::string& identifier, int& level, int& offset,
+                     std::map<std::string, declared_identifier> declared_identifiers, bool global);
 
 
 // undeclare existing identifier
@@ -72,14 +74,19 @@ struct block {
     int frame_size = CallBlockBaseSize; // call block and return value is implicitly present
 
     // map of declared identifiers in the block scope
-    std::map<std::string, declared_identifier> declared_identifiers;
+    //std::map<std::string, declared_identifier> declared_identifiers;
+
+    //identifiers list size on init
+    int passed_identifiers_count;
 
     // is this block a function? Functions need a frame to allocate
     bool is_function_block = false;
 
     std::list<std::unique_ptr<variable_declaration>>* injected_declarations = nullptr; // for function parameters
 
-    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions, bool& return_val);
+    generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
+                               std::map<std::string, declared_identifier> declared_identifiers,
+                               bool& return_val);
 };
 
 
@@ -128,7 +135,7 @@ struct while_loop : public loop {
         // evaluate loop commands
         if (loop_commands) {
             bool dummy;
-            ret = loop_commands->generate(result_instructions, dummy);
+            ret = loop_commands->generate(result_instructions, declared_identifiers, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -185,7 +192,7 @@ struct for_loop : public loop {
         // evaluate loop commands
         if (loop_commands) {
             bool dummy;
-            ret = loop_commands->generate(result_instructions, dummy);
+            ret = loop_commands->generate(result_instructions, declared_identifiers, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -258,7 +265,7 @@ struct condition{
         // true commands (if condition is true)
         if (first_commands) {
             bool dummy;
-            ret = first_commands->generate(result_instructions, dummy);
+            ret = first_commands->generate(result_instructions, declared_identifiers, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -276,7 +283,7 @@ struct condition{
         if (else_commands) {
 
             bool dummy;
-            ret = else_commands->generate(result_instructions, dummy);
+            ret = else_commands->generate(result_instructions, declared_identifiers, dummy);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }

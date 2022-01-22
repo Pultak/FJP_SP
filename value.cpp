@@ -108,7 +108,7 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
 
     // pushing value to stack, unless "return_value_ignored" is defined
 
-    generation_result ret;
+    generation_result ret = generate_result(evaluate_error::ok, "");
     int address;
 
     switch (value_type) {
@@ -156,7 +156,7 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
                     found = true;
                     break;
                 }
-                size += member->determine_size();
+                size += member->determine_size(struct_defs);
             }
 
             // the member was not found
@@ -169,7 +169,6 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
             auto p_arg = pl0_utils::pl0code_arg(name);
             p_arg.offset = size;
 
-            //todo level and argument swapped
             result_instructions.emplace_back(pl0_utils::pl0code_fct::LOD, 0, p_arg);
 
             break;
@@ -245,16 +244,22 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
                 break;
             }
             // return value is at 0;ReturnValueCell (callee put it there)
-            result_instructions.emplace_back(pl0_utils::pl0code_fct::LOD, ReturnValueCell, 0);
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::LOD, 0, ReturnValueCell);
             break;
     }
 
     // if evaluated ok, but outer context decided to ignore return value, move stack pointer
     if (ret.result == evaluate_error::ok && return_value_ignored) {
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::INT, -1);
+        if(return_value_ignored){
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::INT, -1);
+            return generate_result(evaluate_error::ok, "");
+        }else{
+            return generate_result(evaluate_error::func_no_return, "Function is without return value!");
+        }
+    }else{
+        return ret;
     }
 
-    return ret;
 }
 
 boolean_expression::~boolean_expression() {
@@ -558,15 +563,12 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
                                               std::map<std::string, declared_identifier>& declared_identifiers,
                                               std::map<std::string, std::list<declaration*>*> struct_defs) {
 
-    if (declared_identifiers.find(identifier) != declared_identifiers.end()) {
+    if (declared_identifiers.find(identifier) == declared_identifiers.end()) {
         std::string msg = "Undeclared identifier '" + identifier + "'";
         return generate_result(evaluate_error::undeclared_identifier, msg);
     }
-
-    generation_result res = generate_result(evaluate_error::ok, "");
-
     // evaluate the expression to be assigned to the given identifier
-    res = assign_value->generate(result_instructions, declared_identifiers, struct_defs);
+    generation_result res = assign_value->generate(result_instructions, declared_identifiers, struct_defs);
     if (res.result != evaluate_error::ok) {
         return res;
     }
@@ -589,7 +591,7 @@ generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_ins
                 break;
             }
 
-            size += def->determine_size();
+            size += def->determine_size(struct_defs);
         }
         // new pcode_arg with the given identifier and summed size as offset
         auto arg = pl0_utils::pl0code_arg(identifier);

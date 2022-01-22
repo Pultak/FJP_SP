@@ -1,5 +1,4 @@
 %{
-#pragma once
 #include <cstdio>
 #include <iostream>
 #include "../file.h"
