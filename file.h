@@ -8,8 +8,6 @@
 #include "method.h"
 #include "struct.h"
 
-//todo add structure parsing
-
 struct file{
 public:
     file(std::list<global_statement*>* stmt_list)
@@ -32,8 +30,7 @@ public:
 
 
     generation_result generate() {
-
-        //todo global functions for the needed print enxtension
+        init_io_functions();
 
         generated_instructions.emplace_back(pl0_utils::pl0code_fct::INT, 0, 0);
 
@@ -45,13 +42,11 @@ public:
 
         // calling main function
         generated_instructions.emplace_back(pl0_utils::pl0code_fct::CAL, pl0_utils::pl0code_arg("main", true));
-        generated_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, 0);
-        //todo is the position always static? 3th instruction is main jump
-        generated_instructions[3].arg.value = 3;
+        generated_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, pl0_utils::pl0code_opr::RETURN);
+
 
         for (auto* stmt : *statements) {
-            std::map<std::string, declared_identifier> dummy;
-            generation_result ret = stmt->generate(generated_instructions, dummy, size_global_frame, true);
+            generation_result ret = stmt->generate(generated_instructions, global_identifiers, size_global_frame, true);
             if (ret.result != evaluate_error::ok) {
                 return ret;
             }
@@ -59,27 +54,22 @@ public:
 
         int lvl, val;
 
-        //todo always static instruction position?
         generated_instructions[0].arg.value = size_global_frame;
 
         generated_instructions[1].arg.value = static_cast<int>(generated_instructions.size());
-
+        generated_instructions[3].arg.value = static_cast<int>(generated_instructions.size() - 1);
         for (auto& inits : get_global_initializers()) {
-            //todo global_identifiers can make problems
             inits.second->generate(generated_instructions, global_identifiers, get_struct_defs());
-            find_identifier(inits.first, lvl, val, nullptr);
+            find_identifier(inits.first, lvl, val, global_identifiers, true);
             generated_instructions.emplace_back(pl0_utils::pl0code_fct::STO, val, lvl);
         }
-        //todo is the position always static? 2th instruction is init jump
         generated_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, 1 + 1); // jump back
-
-        //todo do we want string extension?
 
         // resolve functions address in all program instructions
         for (int pos = 0; pos < generated_instructions.size(); pos++) {
             auto& instr = generated_instructions[pos];
             if (instr.instruction == pl0_utils::pl0code_fct::CAL && instr.arg.isref && instr.arg.isfunc) {
-                if (find_identifier(instr.arg.symbolref, lvl, val, nullptr)) {
+                if (find_identifier(instr.arg.symbolref, lvl, val, global_identifiers, true)) {
                     instr.arg.resolve(val);
                     instr.lvl = 0;
                 }
@@ -97,4 +87,7 @@ public:
         return generate_result(evaluate_error::ok, "");
     }
 
+private:
+
+    void init_io_functions();
 };
