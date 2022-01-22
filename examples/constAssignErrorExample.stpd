@@ -1,0 +1,8 @@
+numba main() {
+    E numba a = 10;
+
+    a = 20;
+
+    showMeNumbaAdios(a);
+    gimme a;
+}

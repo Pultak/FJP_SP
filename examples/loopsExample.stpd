@@ -1,0 +1,13 @@
+numba main() {
+    numba i;
+    numba j = 0;
+
+    smortlööp (i = 0; i < 10; i = i + 1) {
+        j = j + i;
+    }
+
+    lööp (j < 1000)
+        j = j * 10;
+
+    gimme j;
+}

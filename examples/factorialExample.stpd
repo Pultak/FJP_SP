@@ -1,0 +1,28 @@
+
+numba factorial_recursive(numba num) {
+	despite (num == 1) {
+		gimme 1;
+	}
+	gimme factorial_recursive(num - 1) * num;
+}
+
+numba factorial_loop(numba num) {
+	numba result = num;
+	lööp (num > 1) {
+		num = num - 1;
+		result = result * num;
+	}
+	gimme result;
+}
+
+numba main() {
+	showMeCharzAdios("Zadejte cislo na vypocteni faktorialu: ");
+	numba vstup = gimmeNumba();
+
+	showMeCharzAdios("Faktorial rekurzi: ");
+	showMeNumbaAdios(factorial_recursive(vstup));
+	showMeCharzAdios("Faktorial cyklem:  ");
+	showMeNumbaAdios(factorial_loop(vstup));
+
+	gimme 0;
+}

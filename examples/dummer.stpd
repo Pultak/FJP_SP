@@ -1,0 +1,6 @@
+numba matej(){
+    gimme 0;
+}
+numba main() {
+    gimme 0;
+}

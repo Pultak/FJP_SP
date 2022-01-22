@@ -1,0 +1,27 @@
+shrek cislatyp {
+    numba a;
+    numba b;
+    numba c;
+};
+
+numba main() {
+    numba xx = 11;
+    shrek cislatyp cisla;
+    numba zz = 12;
+
+    cisla.a = 10;
+    cisla.c = 20;
+
+    showMeNumbaAdios(cisla.a);
+    showMeNumbaAdios(cisla.c);
+    cisla.b = 99;
+
+    showMeNumbaAdios(cisla.a);
+    showMeNumbaAdios(cisla.b);
+    showMeNumbaAdios(cisla.c);
+
+    showMeNumbaAdios(xx);
+    showMeNumbaAdios(zz);
+
+    gimme 0;
+}

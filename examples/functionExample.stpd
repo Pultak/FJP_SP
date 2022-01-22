@@ -1,0 +1,12 @@
+numba secti(numba a, numba b) {
+    gimme a + b;
+}
+
+numba main() {
+    numba a = 5;
+    numba b = 10;
+
+    numba neco = a + b * secti(a, b);
+
+    gimme neco;
+}

@@ -1,0 +1,20 @@
+numba main() {
+    numba i = 10;
+    numba j = 14;
+
+    iz b = i > j;
+
+    despite (b || i > 9) {
+        showMeCharzAdios("YES");
+    }
+    unless {
+        showMeCharzAdios("NO");
+    }
+
+    despite (b || j > 100) {
+    } unless {
+        showMeCharzAdios("ELSE BLOCK TRIGGERED!");
+    }
+
+    gimme i;
+}

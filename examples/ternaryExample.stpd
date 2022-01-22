@@ -1,0 +1,15 @@
+
+numba main() {
+
+    showMeNumbaAdios("Zadejte prvni cislo: ");
+    numba a = consoleScanNum();
+
+    showMeNumbaAdios("Zadejte druhe cislo: ");
+    numba b = consoleScanNum();
+
+    charz res = (a > b) ? "prvni > druhe" : "prvni <= druhe";
+
+    showMeNumbaAdios(res);
+
+    gimme 0;
+}

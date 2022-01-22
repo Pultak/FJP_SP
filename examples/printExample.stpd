@@ -1,0 +1,18 @@
+
+numba main() {
+    E numba i = 25;
+    showMeNumbaAdios(i);
+
+    iz b = true;
+    if (!(true) || !false ||b) {
+        showMeNumbaAdios("TRUE!!!");
+    } else {
+        showMeNumbaAdios("FALSE!!!");
+    }
+
+    numba num = 10;
+
+    charz lit = "a string literal";
+
+    gimme num + 5;
+}
