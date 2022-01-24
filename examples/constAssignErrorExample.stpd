@@ -3,6 +3,6 @@ numba main() {
 
     a = 20;
 
-    showMeNumbaAdios(a);
+    showMeNumba(a);
     gimme a;
 }

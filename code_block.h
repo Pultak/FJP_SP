@@ -12,14 +12,12 @@
 struct loop;
 struct variable_declaration;
 struct condition;
-//todo namespace + refactoring in the future needed
 
 struct block;
 
 
-std::map<std::string, std::list<declaration*>*> get_struct_defs();
+std::map<std::string, std::list<declaration*>*>& get_struct_defs();
 std::map<std::string, value*> get_global_initializers();
-//todo change identifier cell to declared identifiers?
 std::map<std::string, int> get_global_identifier_cell();
 
 // declare identifier in current scope
@@ -130,7 +128,7 @@ struct while_loop : public loop {
 
         // jump below loop block if false (previous evaluation leaves result on stack, JPC performs jump based on this value)
         int jpcpos = result_instructions.size();
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JMC, 0);
 
         // evaluate loop commands
         if (loop_commands) {
@@ -187,7 +185,7 @@ struct for_loop : public loop {
 
         // jump below loop block if false
         int jpcpos = result_instructions.size();
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JMC, 0);
 
         // evaluate loop commands
         if (loop_commands) {
@@ -259,7 +257,7 @@ struct condition{
 
         // prepare JPC, the later code will generate target address
         int jpc_position = result_instructions.size();
-        result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+        result_instructions.emplace_back(pl0_utils::pl0code_fct::JMC, 0);
         int end_block = -1;
 
         // true commands (if condition is true)

@@ -6,22 +6,22 @@ shrek cislatyp {
 
 numba main() {
     numba xx = 11;
-    shrek cislatyp cisla;
     numba zz = 12;
+    shrek cislatyp cisla;
 
     cisla.a = 10;
     cisla.c = 20;
 
-    showMeNumbaAdios(cisla.a);
-    showMeNumbaAdios(cisla.c);
+    showMeNumba(cisla.a);
+    showMeNumba(cisla.c);
     cisla.b = 99;
 
-    showMeNumbaAdios(cisla.a);
-    showMeNumbaAdios(cisla.b);
-    showMeNumbaAdios(cisla.c);
+    showMeNumba(cisla.a);
+    showMeNumba(cisla.b);
+    showMeNumba(cisla.c);
 
-    showMeNumbaAdios(xx);
-    showMeNumbaAdios(zz);
+    showMeNumba(xx);
+    showMeNumba(zz);
 
     gimme 0;
 }

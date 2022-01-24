@@ -75,7 +75,7 @@ struct declaration {
     int override_frame_pos = std::numeric_limits<int>::max();
 
     // get size of the declaration for the stack frame
-    int determine_size(std::map<std::string, std::list<declaration*>*> struct_defs) const {
+    int determine_size(std::map<std::string, std::list<declaration*>*>& struct_defs) const {
         int size = 0;
         //structure size is variable depending on its value
         if (type.parent_type == TYPE_META_STRUCT) {
@@ -96,7 +96,7 @@ struct declaration {
     }
 
     generation_result generate(int& identifier_cell, int& frame_size, bool global,
-                               std::map<std::string, std::list<declaration*>*> struct_defs) {
+                               std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
         // if it's a struct declaration, verify its existence
         if (type.parent_type == TYPE_META_STRUCT) {
@@ -108,10 +108,9 @@ struct declaration {
             auto b = (*a->second).begin();
 
             auto decl = a->second;
-            if(decl && (*decl).empty()){
+            if(decl && !decl->empty()){
                 type.child_type = (*decl).begin().operator*()->type_indice;
             }else{
-                //todo check if good?
                 return generate_result(evaluate_error::unknown_typename, "Unknown type name '" + struct_name + "'");
             }
         }

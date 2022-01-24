@@ -12,7 +12,7 @@ std::map<std::string, value*> global_initializers;
 std::map<std::string, std::list<declaration*>*> struct_defs;
 
 
-std::map<std::string, std::list<declaration*>*> get_struct_defs() {
+std::map<std::string, std::list<declaration*>*>& get_struct_defs() {
     return struct_defs;
 }
 
@@ -219,7 +219,6 @@ generation_result block::generate(std::vector<pl0_utils::pl0code_instruction>& r
             // if the argument is a reference, try to resolve
             if (instr.arg.isref) {
                 // find identifier
-                //todo can be block global? if yes then change false -> some variable
                 bool found = find_identifier(instr.arg.symbolref, lvl, val, declared_identifiers, false);
                 if (found) {
                     // resolve if found
@@ -264,7 +263,6 @@ generation_result variable_declaration::generate(std::vector<pl0_utils::pl0code_
                            std::map<std::string, declared_identifier>& declared_identifiers,
                            int& frame_size, bool global) {
 
-    //todo will same identifiers rewrite?
     declared_identifiers[decl->identifier] = {};
     auto& id = declared_identifiers.at(decl->identifier);
     generation_result ret = decl->generate(id.identifier_address, frame_size, global, get_struct_defs());

@@ -16,13 +16,9 @@ numba factorial_loop(numba num) {
 }
 
 numba main() {
-	showMeCharzAdios("Zadejte cislo na vypocteni faktorialu: ");
 	numba vstup = gimmeNumba();
-
-	showMeCharzAdios("Faktorial rekurzi: ");
-	showMeNumbaAdios(factorial_recursive(vstup));
-	showMeCharzAdios("Faktorial cyklem:  ");
-	showMeNumbaAdios(factorial_loop(vstup));
+	showMeNumba(factorial_recursive(vstup));
+	showMeNumba(factorial_loop(vstup));
 
 	gimme 0;
 }

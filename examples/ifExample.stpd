@@ -5,15 +5,16 @@ numba main() {
     iz b = i > j;
 
     despite (b || i > 9) {
-        showMeCharzAdios("YES");
+        showMeNumba(420);
     }
     unless {
-        showMeCharzAdios("NO");
+        showMeNumba(69);
     }
 
     despite (b || j > 100) {
+        showMeNumba(69);
     } unless {
-        showMeCharzAdios("ELSE BLOCK TRIGGERED!");
+        showMeNumba(420);
     }
 
     gimme i;

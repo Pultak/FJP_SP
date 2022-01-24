@@ -61,8 +61,6 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
 
         // reserve place for them and declare their identifiers in it
         code_block->injected_declarations = &param_decl;
-        //todo what will happen after method destructor called? injected_declarations
-
         return_statement = false;
         ret = code_block->generate(result_instructions, declared_identifiers, return_statement);
 
@@ -72,7 +70,6 @@ generation_result method_declaration::generate(std::vector<pl0_utils::pl0code_in
 
         // check if a non-void function returns a value
         if (!return_statement) {
-            //todo should we use void functions?
             if (decl->type.parent_type != TYPE_VOID) {
                 return generate_result(evaluate_error::func_no_return, "Function '" + decl->identifier + "' does not return any value");
             }

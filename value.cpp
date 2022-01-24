@@ -47,7 +47,7 @@ pl0_utils::pl0type_info get_identifier_type_info(const std::string& identifier,
 
 
 pl0_utils::pl0type_info value::get_type_info(std::map<std::string, declared_identifier>& declared_identifiers,
-                                             std::map<std::string, std::list<declaration*>*> struct_defs) const{
+                                             std::map<std::string, std::list<declaration*>*>& struct_defs) const{
     switch (value_type) {
         case value_type::const_number_lit:
             return { TYPE_INT, 0, false };
@@ -104,7 +104,7 @@ pl0_utils::pl0type_info value::get_type_info(std::map<std::string, declared_iden
 
 generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                   std::map<std::string, declared_identifier>& declared_identifiers,
-                                  std::map<std::string, std::list<declaration*>*> struct_defs) {
+                                  std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
     // pushing value to stack, unless "return_value_ignored" is defined
 
@@ -205,7 +205,7 @@ generation_result value::generate(std::vector<pl0_utils::pl0code_instruction>& r
             }
             // jump to false branch if false (address will be stored later, once known)
             int jpcpos = result_instructions.size();
-            result_instructions.emplace_back(pl0_utils::pl0code_fct::JPC, 0);
+            result_instructions.emplace_back(pl0_utils::pl0code_fct::JMC, 0);
             // evaluate "true" branch
             ret = content.ternary.positive->generate(result_instructions, declared_identifiers, struct_defs);
             if (ret.result != evaluate_error::ok) {
@@ -279,7 +279,7 @@ boolean_expression::~boolean_expression() {
 
 generation_result boolean_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                                std::map<std::string, declared_identifier>& declared_identifiers,
-                                               std::map<std::string, std::list<declaration*>*> struct_defs) {
+                                               std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
@@ -430,7 +430,7 @@ method_call::~method_call(){
 
 generation_result method_call::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                         std::map<std::string, declared_identifier>& declared_identifiers,
-                                        std::map<std::string, std::list<declaration*>*> struct_defs) {
+                                        std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
@@ -500,7 +500,7 @@ math::~math() {
 
 generation_result math::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                  std::map<std::string, declared_identifier>& declared_identifiers,
-                                 std::map<std::string, std::list<declaration*>*> struct_defs){
+                                 std::map<std::string, std::list<declaration*>*>& struct_defs){
 
     generation_result ret = generate_result(evaluate_error::ok, "");
 
@@ -538,7 +538,7 @@ expression::~expression() {
 
 generation_result expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                        std::map<std::string, declared_identifier>& declared_identifiers,
-                                       std::map<std::string, std::list<declaration*>*> struct_defs) {
+                                       std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
     // wrap "value" evaluation, but ignore return value (discard stack value by calling INT 0 -1)
     if (evaluate_value) {
@@ -561,7 +561,7 @@ assign_expression::~assign_expression() {
 
 generation_result assign_expression::generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                               std::map<std::string, declared_identifier>& declared_identifiers,
-                                              std::map<std::string, std::list<declaration*>*> struct_defs) {
+                                              std::map<std::string, std::list<declaration*>*>& struct_defs) {
 
     if (declared_identifiers.find(identifier) == declared_identifiers.end()) {
         std::string msg = "Undeclared identifier '" + identifier + "'";

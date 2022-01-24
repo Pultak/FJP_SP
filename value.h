@@ -106,10 +106,10 @@ struct value{
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               std::map<std::string, std::list<declaration*>*> struct_defs);
+                               std::map<std::string, std::list<declaration*>*>& struct_defs);
 
     pl0_utils::pl0type_info get_type_info(std::map<std::string, declared_identifier>& declared_identifiers,
-                                          std::map<std::string, std::list<declaration*>*> struct_defs) const;
+                                          std::map<std::string, std::list<declaration*>*>& struct_defs) const;
 };
 
 
@@ -198,7 +198,7 @@ struct boolean_expression {
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               std::map<std::string, std::list<declaration*>*> struct_defs);
+                               std::map<std::string, std::list<declaration*>*>& struct_defs);
 };
 
 
@@ -217,7 +217,7 @@ struct method_call{
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               std::map<std::string, std::list<declaration*>*> struct_defs);
+                               std::map<std::string, std::list<declaration*>*>& struct_defs);
 };
 
 
@@ -292,7 +292,7 @@ struct math {
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               std::map<std::string, std::list<declaration*>*> struct_defs);
+                               std::map<std::string, std::list<declaration*>*>& struct_defs);
 };
 
 // wrapper of value that helps to discard stack record
@@ -310,7 +310,7 @@ struct expression {
 
     virtual generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                        std::map<std::string, declared_identifier>& declared_identifiers,
-                                       std::map<std::string, std::list<declaration*>*> struct_defs);
+                                       std::map<std::string, std::list<declaration*>*>& struct_defs);
 };
 
 
@@ -341,6 +341,6 @@ struct assign_expression : public expression {
 
     generation_result generate(std::vector<pl0_utils::pl0code_instruction>& result_instructions,
                                std::map<std::string, declared_identifier>& declared_identifiers,
-                               std::map<std::string, std::list<declaration*>*> struct_defs) override;
+                               std::map<std::string, std::list<declaration*>*>& struct_defs) override;
 };
  //FJP_SP_VALUE_H

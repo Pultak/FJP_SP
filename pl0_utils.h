@@ -19,10 +19,12 @@ namespace pl0_utils{
         CAL,
         INT,
         JMP,
-        JPC,
         STA,
         LDA,
-        RET
+        RET,
+        JMC,
+        WRI,
+        REA
     };
 
     //pl0 INT operations
@@ -120,9 +122,6 @@ namespace pl0_utils{
                 case pl0code_fct::JMP:
                     ret = "JMP";
                     break;
-                case pl0code_fct::JPC:
-                    ret = "JPC";
-                    break;
                 case pl0code_fct::STA:
                     ret = "STA";
                     break;
@@ -131,6 +130,15 @@ namespace pl0_utils{
                     break;
                 case pl0code_fct::RET:
                     ret = "RET";
+                    break;
+                case pl0code_fct::JMC:
+                    ret = "JMC";
+                    break;
+                case pl0code_fct::WRI:
+                    ret = "WRI";
+                    break;
+                case pl0code_fct::REA:
+                    ret = "REA";
                     break;
                 default:
                     ret = "???";

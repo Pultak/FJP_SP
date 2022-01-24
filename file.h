@@ -30,8 +30,6 @@ public:
 
 
     generation_result generate() {
-        init_io_functions();
-
         generated_instructions.emplace_back(pl0_utils::pl0code_fct::INT, 0, 0);
 
         //reserve frame size for virtual callblock and main return value
@@ -42,8 +40,9 @@ public:
 
         // calling main function
         generated_instructions.emplace_back(pl0_utils::pl0code_fct::CAL, pl0_utils::pl0code_arg("main", true));
-        generated_instructions.emplace_back(pl0_utils::pl0code_fct::JMP, pl0_utils::pl0code_opr::RETURN);
+        generated_instructions.emplace_back(pl0_utils::pl0code_fct::RET, pl0_utils::pl0code_opr::RETURN);
 
+        init_io_functions();
 
         for (auto* stmt : *statements) {
             generation_result ret = stmt->generate(generated_instructions, global_identifiers, size_global_frame, true);
@@ -57,7 +56,6 @@ public:
         generated_instructions[0].arg.value = size_global_frame;
 
         generated_instructions[1].arg.value = static_cast<int>(generated_instructions.size());
-        generated_instructions[3].arg.value = static_cast<int>(generated_instructions.size() - 1);
         for (auto& inits : get_global_initializers()) {
             inits.second->generate(generated_instructions, global_identifiers, get_struct_defs());
             find_identifier(inits.first, lvl, val, global_identifiers, true);

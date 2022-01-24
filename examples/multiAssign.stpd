@@ -9,20 +9,20 @@ numba main() {
     numba a;
     numba b;
     numba c;
-    numba d[2];
+    numba d;
     shrek test t;
 
     c = 5;
 
     a = b = ((c == 5) ? 10 : 0);
 
-    showMeNumbaAdios(a + b + c);
+    showMeNumba(a + b + c);
 
-    a = d[2] = t.y = b = d[1] = c = (a = 100) + 5;
+    a = t.y = d = b = c = (a = 100) + 5;
 
-    showMeNumbaAdios(a);
-    showMeNumbaAdios(d[2]);
-    showMeNumbaAdios(t.y);
+    showMeNumba(a);
+    showMeNumba(d);
+    showMeNumba(t.y);
 
     gimme a;
 }
